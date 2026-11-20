@@ -205,6 +205,28 @@
     </div>
 
     <div class="group">
+      <div class="glabel">位置</div>
+      <div class="card">
+        <div class="field">
+          <label>当前位置</label>
+          <div class="row">
+            <div class="balance" id="geoVal">未获取</div>
+            <button class="mini" id="btnGeo">获取</button>
+          </div>
+          <div class="desc" id="geoNote">点一下获取大致位置。只保留城市级别，不保存精确坐标。</div>
+        </div>
+        <div class="field">
+          <label>发送给模型</label>
+          <div class="seg" id="segGeo">
+            <button data-v="on">开启</button>
+            <button data-v="off">关闭</button>
+          </div>
+          <div class="desc">开启后每次请求会带上「你在哪个城市」，聊本地话题更自然；配合联网搜索还能问天气。</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="group">
       <div class="glabel">长期记忆</div>
       <div class="card">
         <div class="field">

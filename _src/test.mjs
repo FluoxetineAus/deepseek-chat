@@ -113,6 +113,18 @@ ok('朗读前清洗 Markdown', () => {
   assert.ok(t.includes('代码'), '代码块替换成一句提示');
 });
 
+ok('位置注入 system，可关闭', () => {
+  const conv = { messages: [{ role: 'user', content: '今天热吗', ts: 1 }] };
+  const on = app.buildApiMessages(conv, { geo: { city: '杭州市', district: '拱墅区', on: true } }, 0, 999999);
+  assert.ok(on[0].content.includes('【用户位置】杭州市 拱墅区'), on[0].content.slice(0, 200));
+  const off = app.buildApiMessages(conv, { geo: { city: '杭州市', district: '', on: false } }, 0, 999999);
+  assert.ok(!off[0].content.includes('【用户位置】'), '关闭时不应带位置');
+  const none = app.buildApiMessages(conv, { geo: { city: '', on: true } }, 0, 999999);
+  assert.ok(!none[0].content.includes('【用户位置】'), '没有位置时不应带');
+  const missing = app.buildApiMessages(conv, {}, 0, 999999);
+  assert.ok(!missing[0].content.includes('【用户位置】'), '未设置时不应带');
+});
+
 ok('星标会话置顶且不改动原数组', () => {
   const list = [{ id: 'a' }, { id: 'b', starred: true }, { id: 'c' }, { id: 'd', starred: true }];
   const out = app.sortConvs(list);

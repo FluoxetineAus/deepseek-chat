@@ -790,6 +790,11 @@
     sysParts.push(
       '【当前时间】' + nowLine() + '\n说到「今天/昨天/明天」时以这个时间为准，不要凭训练数据猜测。'
     );
+    var g = settings.geo;
+    if (g && g.on && g.city) {
+      sysParts.push('【用户位置】' + g.city + (g.district && g.district !== g.city ? ' ' + g.district : '') +
+        '\n聊到本地话题（天气、出行、附近的东西）时可以直接参考这个位置。');
+    }
     if (sys) sysParts.push(sys);
     if (mem) {
       sysParts.push(
@@ -2315,6 +2320,7 @@
     syncSeg('#segTheme', s.theme);
     syncModelNote();
     syncKeyNote();
+    syncGeoUI();
     updateBackupNote();
     updateGuardNote();
     fetchBalance(false);
@@ -2768,6 +2774,15 @@
     $('#btnBalance').addEventListener('click', function () {
       fetchBalance(true);
     });
+    $('#btnGeo').addEventListener('click', requestGeo);
+    document.querySelectorAll('#segGeo button').forEach(function (b) {
+      b.addEventListener('click', function () {
+        state.settings.geo = state.settings.geo || {};
+        state.settings.geo.on = b.getAttribute('data-v') === 'on';
+        save();
+        syncGeoUI();
+      });
+    });
     $('#btnRestore').addEventListener('click', restoreBackup);
     $('#btnSnapshots').addEventListener('click', loadSnapshots);
     $('#snapList').addEventListener('click', function (e) {
@@ -2869,6 +2884,76 @@
       currentId: state.currentId,
       convs: state.convs
     });
+  }
+
+  function geoText() {
+    var g = state.settings.geo || {};
+    if (!g.city) return '未获取';
+    return g.city + (g.district && g.district !== g.city ? ' ' + g.district : '');
+  }
+
+  function syncGeoUI() {
+    var v = document.getElementById('geoVal');
+    var n = document.getElementById('geoNote');
+    var g = state.settings.geo || {};
+    if (v) v.textContent = geoText();
+    if (n) {
+      if (!g.city) {
+        n.textContent = '点一下获取大致位置。只保留城市级别，不保存精确坐标。';
+      } else {
+        var d = new Date(g.at || Date.now());
+        var p2 = function (x) { return ('0' + x).slice(-2); };
+        n.textContent = '更新于 ' + (d.getMonth() + 1) + '/' + d.getDate() + ' ' +
+          p2(d.getHours()) + ':' + p2(d.getMinutes()) + ' · 仅城市级别，不发送精确坐标';
+      }
+    }
+    var seg = document.querySelectorAll('#segGeo button');
+    for (var i = 0; i < seg.length; i++) {
+      seg[i].classList.toggle('on', seg[i].getAttribute('data-v') === (g.on ? 'on' : 'off'));
+    }
+  }
+
+  function requestGeo() {
+    var prev = geoText();
+    var set = function (txt) {
+      var v = document.getElementById('geoVal');
+      if (v) v.textContent = txt;
+    };
+    if (!navigator.geolocation) { toast('这个浏览器不支持定位'); return; }
+    if (!window.isSecureContext) { toast('定位需要 HTTPS 页面'); return; }
+    set('定位中…');
+    navigator.geolocation.getCurrentPosition(
+      function (pos) {
+        var lat = Math.round(pos.coords.latitude * 100) / 100;
+        var lon = Math.round(pos.coords.longitude * 100) / 100;
+        var done = function (city, district) {
+          state.settings.geo = { city: city, district: district || '', at: Date.now(), on: true };
+          save();
+          syncGeoUI();
+          toast(city ? '位置已更新：' + city : '位置已更新');
+        };
+        fetch('https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=' +
+          lat + '&longitude=' + lon + '&localityLanguage=zh')
+          .then(function (r) { return r.ok ? r.json() : null; })
+          .then(function (j) {
+            if (j && (j.city || j.locality || j.principalSubdivision)) {
+              done(j.city || j.locality || j.principalSubdivision, j.locality || '');
+            } else {
+              done('约 ' + lat + ', ' + lon, '');
+            }
+          })
+          .catch(function () { done('约 ' + lat + ', ' + lon, ''); });
+      },
+      function (err) {
+        set(prev);
+        var m = '定位失败';
+        if (err && err.code === 1) m = '定位权限被拒绝，去 设置 → Safari → 位置 里允许';
+        else if (err && err.code === 2) m = '拿不到位置（信号弱或系统定位关闭）';
+        else if (err && err.code === 3) m = '定位超时，再试一次';
+        toast(m);
+      },
+      { timeout: 12000, maximumAge: 300000, enableHighAccuracy: false }
+    );
   }
 
   function setBalance(text, cls) {
