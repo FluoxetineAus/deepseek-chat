@@ -2219,9 +2219,11 @@
             removed = true;
           } else msg.stopped = true;
         } else if (err && err.code === 'BLOCKED') {
-          msg.content = '';
-          msg.reasoning = '';
-          msg.error = '这条内容被安全策略拦截了，换个说法或换个角度试试。';
+          // 单用户场景：已生成的部分保留，不撤回，只标注被截断
+          msg.blocked = true;
+          msg.error = msg.content
+            ? '后面这段被安全策略截断了，前面已生成的内容保留在上面。'
+            : '这条内容被安全策略拦截了，换个说法或换个角度试试。';
         } else if (allowRetry && isContextError(err)) {
           conv.messages.splice(idx, 1);
           removed = true;
