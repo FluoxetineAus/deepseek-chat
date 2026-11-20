@@ -2679,12 +2679,21 @@
       window.visualViewport.addEventListener('scroll', fitViewport);
     }
     setInterval(function () {
-      if (ui.dirty && !ui.streaming) pushBackup(true);
+      if (ui.dirty && !ui.streaming && ui.serverMode !== false) pushBackup(true);
     }, 45000);
-    setTimeout(function () {
-      if (hasAnyMessages()) pushBackup(true);
-      else probeServerBackup();
-    }, 3000);
+    probeServer().then(function (online) {
+      if (online) {
+        setTimeout(function () {
+          if (hasAnyMessages()) pushBackup(true);
+          else probeServerBackup();
+        }, 2500);
+      }
+    });
+
+    // 离线可打开：只在 HTTPS（或 localhost）下注册
+    if ('serviceWorker' in navigator && window.isSecureContext) {
+      navigator.serviceWorker.register('sw.js').catch(function () {});
+    }
     document.addEventListener('visibilitychange', function () {
       if (document.visibilityState === 'hidden' && ui.dirty && navigator.sendBeacon) {
         try {
@@ -2778,7 +2787,9 @@
       json = JSON.stringify(state);
     } catch (e) {}
     var bytes = json ? new Blob([json]).size : 0;
-    var mb = (bytes / 1024 / 1024).toFixed(2);
+    var sizeText = bytes < 1024 * 1024
+      ? (bytes / 1024).toFixed(bytes < 10240 ? 1 : 0) + ' KB'
+      : (bytes / 1024 / 1024).toFixed(2) + ' MB';
     var tight = bytes > 3.5 * 1024 * 1024;
     var le = state.settings.lastExportAt;
     var exportTxt = le
@@ -2786,8 +2797,8 @@
       : '<span class="warn">从未导出</span>';
     el.innerHTML =
       '<b>本地占用</b> ' +
-      mb +
-      ' MB / 约 5 MB' +
+      sizeText +
+      ' / 约 5 MB' +
       (tight ? ' <span class="warn">偏满</span>' : '') +
       '<br>' +
       '<b>最近导出</b> ' +
@@ -2801,6 +2812,10 @@
   function updateBackupNote() {
     var el = document.getElementById('backupNote');
     if (!el) return;
+    if (ui.serverMode === false) {
+      el.textContent = '托管模式：数据只存在这台手机上，不会连电脑。请定期用上面的「导出备份」。';
+      return;
+    }
     if (ui.backupErr) {
       el.textContent = '自动备份失败：' + ui.backupErr + '（电脑上的服务没开？）';
       return;
@@ -2821,6 +2836,22 @@
       ' · 浏览器数据被清也能找回';
   }
 
+  function probeServer() {
+    return fetch('/api/health')
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (j) { return !!(j && j.ok); })
+      .catch(function () { return false; })
+      .then(function (ok) {
+        ui.serverMode = ok;
+        var rb = document.getElementById('btnRestore');
+        var sb = document.getElementById('btnSnapshots');
+        if (rb) rb.style.display = ok ? '' : 'none';
+        if (sb) sb.style.display = ok ? '' : 'none';
+        updateBackupNote();
+        return ok;
+      });
+  }
+
   function hasAnyMessages() {
     return state.convs.some(function (c) {
       return c.messages && c.messages.length;
@@ -2828,6 +2859,7 @@
   }
 
   function probeServerBackup() {
+    if (ui.serverMode === false) return;
     if (hasAnyMessages()) return;
     fetch('/api/backup/latest')
       .then(function (r) {
@@ -2853,6 +2885,7 @@
   }
 
   function pushBackup(silent) {
+    if (ui.serverMode === false) return Promise.resolve(false);
     if (!hasAnyMessages()) return Promise.resolve(false);
     var body;
     try {

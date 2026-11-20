@@ -250,14 +250,16 @@ const ALLOW = new Set([
   '/icon-1024.png',
   '/avatar.jpg',
   '/ca.crt',
-  '/favicon.ico'
+  '/favicon.ico',
+  '/sw.js'
 ]);
 const MIME = {
   '.html': 'text/html; charset=utf-8',
   '.png': 'image/png',
   '.jpg': 'image/jpeg',
   '.ico': 'image/x-icon',
-  '.crt': 'application/x-x509-ca-cert'
+  '.crt': 'application/x-x509-ca-cert',
+  '.js': 'application/javascript; charset=utf-8'
 };
 
 function handler(req, res, ca) {
@@ -295,6 +297,12 @@ function handler(req, res, ca) {
         res.end(JSON.stringify({ ok: false, error: e.message }));
       }
     });
+    return;
+  }
+
+  if (url === '/api/health') {
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+    res.end(JSON.stringify({ ok: true, server: 'local', features: ['backup', 'tts'] }));
     return;
   }
 
