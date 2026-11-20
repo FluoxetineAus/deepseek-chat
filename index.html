@@ -2748,6 +2748,14 @@ textarea {
   /* ---------- api ---------- */
 
   function apiError(status, detail) {
+    // 输入被内容安全策略拦截（文档：400 Content Exists Risk）
+    if (status === 400 && /content exists risk|content_filter|content moderation/i.test(String(detail || ''))) {
+      var blocked = new Error('这条内容被安全策略拦截了，换个说法或换个角度试试');
+      blocked.status = status;
+      blocked.detail = detail || '';
+      blocked.code = 'BLOCKED';
+      return blocked;
+    }
     var map = {
       400: '请求格式有误（可能上下文过长，或该模型不支持所传参数）',
       401: 'API Key 无效或已过期，请在设置中重新填写',
@@ -2831,6 +2839,8 @@ textarea {
     var usage = null;
     var citations = [];
     var searched = false;
+    var finishReason = '';
+    var refusal = '';
 
     var parser = createSSEParser(function (ev) {
       if (ev.done) return;
@@ -2841,7 +2851,9 @@ textarea {
       }
       var ch = j.choices && j.choices[0];
       if (!ch) return;
+      if (ch.finish_reason) finishReason = ch.finish_reason;
       var d = ch.delta || {};
+      if (d.refusal) refusal = String(d.refusal);
 
       // 联网：来源引用与工具调用（流式时在最后一个 chunk 一次性下发）
       if (d.annotations && d.annotations.length) {
@@ -2926,6 +2938,13 @@ textarea {
     }
 
     function finish() {
+      // 输出被内容安全策略拦截：文档要求清掉已流式显示的内容
+      if (finishReason === 'content_filter' || refusal) {
+        var be = new Error('这条内容被安全策略拦截了，换个说法或换个角度试试');
+        be.code = 'BLOCKED';
+        be.refusal = refusal;
+        throw be;
+      }
       if (!content) {
         if (reasoning) {
           var e = new Error('模型只返回了思考过程，没有生成回答，请重试');
@@ -4544,6 +4563,10 @@ textarea {
             conv.messages.splice(idx, 1);
             removed = true;
           } else msg.stopped = true;
+        } else if (err && err.code === 'BLOCKED') {
+          msg.content = '';
+          msg.reasoning = '';
+          msg.error = '这条内容被安全策略拦截了，换个说法或换个角度试试。';
         } else if (allowRetry && isContextError(err)) {
           conv.messages.splice(idx, 1);
           removed = true;

@@ -619,6 +619,55 @@ await okAsync('纯图片消息（无文字）也能发出', async () => {
   }
 });
 
+await okAsync('输出被内容安全拦截 → BLOCKED', async () => {
+  const { srv, url } = await mock((req, res) => {
+    streamOK(res, [
+      sse({ choices: [{ delta: { content: '这是一段' } }] }),
+      sse({ choices: [{ delta: {}, finish_reason: 'content_filter' }] }),
+      'data: [DONE]\n\n'
+    ]);
+  });
+  try {
+    await assert.rejects(
+      () => app.streamChat({ apiKey: 'k', model: 'deepseek-flash', endpoint: url, messages: [{ role: 'user', content: 'x' }] }),
+      (e) => {
+        assert.equal(e.code, 'BLOCKED');
+        assert.ok(/安全策略/.test(e.message), e.message);
+        return true;
+      }
+    );
+  } finally { srv.close(); }
+});
+
+await okAsync('输入被拦截（400 Content Exists Risk）', async () => {
+  const { srv, url } = await mock((req, res) => {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: { message: 'Content Exists Risk' } }));
+  });
+  try {
+    await assert.rejects(
+      () => app.streamChat({ apiKey: 'k', model: 'deepseek-flash', endpoint: url, messages: [{ role: 'user', content: 'x' }] }),
+      (e) => {
+        assert.equal(e.code, 'BLOCKED');
+        assert.ok(/安全策略/.test(e.message), e.message);
+        return true;
+      }
+    );
+  } finally { srv.close(); }
+});
+
+await okAsync('锁定默认安全档：请求里不带 safety_check', async () => {
+  let seen = null;
+  const { srv, url } = await mock((req, res, json) => {
+    seen = json;
+    streamOK(res, [sse({ choices: [{ delta: { content: 'x' } }] }), 'data: [DONE]\n\n']);
+  });
+  try {
+    await app.streamChat({ apiKey: 'k', model: 'deepseek-flash', endpoint: url, messages: [{ role: 'user', content: 'x' }], web: true });
+    assert.equal(seen.safety_check, undefined, '不得发送 safety_check');
+  } finally { srv.close(); }
+});
+
 await okAsync('联网：声明服务端工具并解析引用', async () => {
   let seen = null;
   const { srv, url } = await mock((req, res, json) => {
