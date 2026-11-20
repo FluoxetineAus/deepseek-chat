@@ -1,0 +1,22 @@
+{
+  "name": "deepseek-chat",
+  "version": "3.1.0",
+  "private": true,
+  "description": "iPhone 上的 DeepSeek 网页聊天应用（单文件、无框架、无后端）",
+  "scripts": {
+    "build": "node _src/build.mjs",
+    "test": "node _src/lint.mjs && node _src/test.mjs",
+    "lint": "node _src/lint.mjs",
+    "eslint": "eslint _src",
+    "format": "prettier --write \"_src/**/*.{js,mjs,css,json}\"",
+    "serve": "node _src/serve.mjs",
+    "icons": "node _src/gen-icon.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "eslint": "^9.39.5",
+    "prettier": "^3.10.1"
+  }
+}

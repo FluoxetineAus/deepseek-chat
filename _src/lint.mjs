@@ -40,8 +40,14 @@ function scrub(code) {
       const start = i;
       i++;
       while (i < code.length) {
-        if (code[i] === '\\') { i += 2; continue; }
-        if (code[i] === q) { i++; break; }
+        if (code[i] === '\\') {
+          i += 2;
+          continue;
+        }
+        if (code[i] === q) {
+          i++;
+          break;
+        }
         i++;
       }
       out += ' S ' + '\n'.repeat(countNL(code.slice(start, i)));
@@ -52,8 +58,14 @@ function scrub(code) {
       const start = i;
       i++;
       while (i < code.length) {
-        if (code[i] === '\\') { i += 2; continue; }
-        if (code[i] === '`') { i++; break; }
+        if (code[i] === '\\') {
+          i += 2;
+          continue;
+        }
+        if (code[i] === '`') {
+          i++;
+          break;
+        }
         i++;
       }
       out += ' S ' + '\n'.repeat(countNL(code.slice(start, i)));
@@ -66,11 +78,16 @@ function scrub(code) {
       i++;
       let inClass = false;
       while (i < code.length) {
-        if (code[i] === '\\') { i += 2; continue; }
+        if (code[i] === '\\') {
+          i += 2;
+          continue;
+        }
         if (code[i] === '[') inClass = true;
         else if (code[i] === ']') inClass = false;
-        else if (code[i] === '/' && !inClass) { i++; break; }
-        else if (code[i] === '\n') break;
+        else if (code[i] === '/' && !inClass) {
+          i++;
+          break;
+        } else if (code[i] === '\n') break;
         i++;
       }
       while (i < code.length && /[a-z]/i.test(code[i])) i++;
@@ -89,23 +106,106 @@ const calls_src = scrub(raw);
 const src = raw;
 
 const GLOBALS = new Set([
-  'if', 'for', 'while', 'switch', 'catch', 'return', 'typeof', 'new', 'function',
-  'else', 'do', 'try', 'in', 'of', 'delete', 'void', 'await', 'async', 'yield',
-  'super', 'this', 'case', 'throw', 'instanceof', 'var', 'let', 'const',
-  'Object', 'Array', 'String', 'Number', 'Boolean', 'Math', 'JSON', 'Date',
-  'Promise', 'RegExp', 'Error', 'Map', 'Set', 'Symbol', 'Intl',
-  'parseInt', 'parseFloat', 'isNaN', 'isFinite', 'encodeURIComponent',
-  'decodeURIComponent', 'encodeURI', 'decodeURI', 'structuredClone',
-  'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval',
-  'requestAnimationFrame', 'cancelAnimationFrame', 'queueMicrotask',
-  'fetch', 'Response', 'Request', 'Headers', 'AbortController', 'Blob', 'File',
-  'FileReader', 'FormData', 'URL', 'URLSearchParams', 'TextDecoder', 'TextEncoder',
-  'ReadableStream', 'WritableStream', 'TransformStream', 'Audio', 'Image',
-  'SpeechSynthesisUtterance', 'MutationObserver', 'IntersectionObserver',
-  'ResizeObserver', 'localStorage', 'sessionStorage', 'navigator', 'document',
-  'window', 'speechSynthesis', 'console', 'alert', 'confirm', 'prompt',
-  'getComputedStyle', 'matchMedia', 'crypto', 'atob', 'btoa', 'Uint8Array',
-  'Float64Array', 'Int32Array', 'ArrayBuffer', 'DataView'
+  'if',
+  'for',
+  'while',
+  'switch',
+  'catch',
+  'return',
+  'typeof',
+  'new',
+  'function',
+  'else',
+  'do',
+  'try',
+  'in',
+  'of',
+  'delete',
+  'void',
+  'await',
+  'async',
+  'yield',
+  'super',
+  'this',
+  'case',
+  'throw',
+  'instanceof',
+  'var',
+  'let',
+  'const',
+  'Object',
+  'Array',
+  'String',
+  'Number',
+  'Boolean',
+  'Math',
+  'JSON',
+  'Date',
+  'Promise',
+  'RegExp',
+  'Error',
+  'Map',
+  'Set',
+  'Symbol',
+  'Intl',
+  'parseInt',
+  'parseFloat',
+  'isNaN',
+  'isFinite',
+  'encodeURIComponent',
+  'decodeURIComponent',
+  'encodeURI',
+  'decodeURI',
+  'structuredClone',
+  'setTimeout',
+  'clearTimeout',
+  'setInterval',
+  'clearInterval',
+  'requestAnimationFrame',
+  'cancelAnimationFrame',
+  'queueMicrotask',
+  'fetch',
+  'Response',
+  'Request',
+  'Headers',
+  'AbortController',
+  'Blob',
+  'File',
+  'FileReader',
+  'FormData',
+  'URL',
+  'URLSearchParams',
+  'TextDecoder',
+  'TextEncoder',
+  'ReadableStream',
+  'WritableStream',
+  'TransformStream',
+  'Audio',
+  'Image',
+  'SpeechSynthesisUtterance',
+  'MutationObserver',
+  'IntersectionObserver',
+  'ResizeObserver',
+  'localStorage',
+  'sessionStorage',
+  'navigator',
+  'document',
+  'window',
+  'speechSynthesis',
+  'console',
+  'alert',
+  'confirm',
+  'prompt',
+  'getComputedStyle',
+  'matchMedia',
+  'crypto',
+  'atob',
+  'btoa',
+  'Uint8Array',
+  'Float64Array',
+  'Int32Array',
+  'ArrayBuffer',
+  'DataView'
 ]);
 
 const defined = new Set();

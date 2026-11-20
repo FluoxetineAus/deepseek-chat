@@ -62,7 +62,7 @@ const C3 = [56, 40, 180];
 const DOT = [61, 86, 232];
 const WHITE = [255, 255, 255];
 
-const clamp01 = v => (v < 0 ? 0 : v > 1 ? 1 : v);
+const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
 const mix = (a, b, t) => [
   a[0] + (b[0] - a[0]) * t,
   a[1] + (b[1] - a[1]) * t,
@@ -88,7 +88,7 @@ function inTriangle(px, py, ax, ay, bx, by, cx, cy) {
 /** 单个采样点颜色（归一化坐标 0..1） */
 function sample(x, y) {
   // 底色：对角渐变
-  let t = clamp01((x * 0.72 + y * 0.55));
+  let t = clamp01(x * 0.72 + y * 0.55);
   t = t * t * (3 - 2 * t); // smoothstep
   let col = mix(C1, C2, t);
 

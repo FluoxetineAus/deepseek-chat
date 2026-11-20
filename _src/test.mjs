@@ -6,16 +6,31 @@ import assert from 'node:assert/strict';
 const require = createRequire(import.meta.url);
 const app = require('./app.js');
 
-let pass = 0, fail = 0;
+let pass = 0,
+  fail = 0;
 const fails = [];
 
 function ok(name, fn) {
-  try { fn(); pass++; console.log('  \x1b[32m✓\x1b[0m ' + name); }
-  catch (e) { fail++; fails.push(name); console.log('  \x1b[31m✗\x1b[0m ' + name + '\n      ' + e.message); }
+  try {
+    fn();
+    pass++;
+    console.log('  \x1b[32m✓\x1b[0m ' + name);
+  } catch (e) {
+    fail++;
+    fails.push(name);
+    console.log('  \x1b[31m✗\x1b[0m ' + name + '\n      ' + e.message);
+  }
 }
 async function okAsync(name, fn) {
-  try { await fn(); pass++; console.log('  \x1b[32m✓\x1b[0m ' + name); }
-  catch (e) { fail++; fails.push(name); console.log('  \x1b[31m✗\x1b[0m ' + name + '\n      ' + e.message); }
+  try {
+    await fn();
+    pass++;
+    console.log('  \x1b[32m✓\x1b[0m ' + name);
+  } catch (e) {
+    fail++;
+    fails.push(name);
+    console.log('  \x1b[31m✗\x1b[0m ' + name + '\n      ' + e.message);
+  }
 }
 
 /* ---------- mock server ---------- */
@@ -26,7 +41,9 @@ function mock(handler) {
       req.on('data', (c) => (body += c));
       req.on('end', () => {
         let json = null;
-        try { json = JSON.parse(body); } catch (e) {}
+        try {
+          json = JSON.parse(body);
+        } catch (e) {}
         handler(req, res, json);
       });
     });
@@ -43,7 +60,10 @@ function streamOK(res, parts, opts = {}) {
   res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache' });
   let i = 0;
   const next = () => {
-    if (i >= parts.length) { res.end(); return; }
+    if (i >= parts.length) {
+      res.end();
+      return;
+    }
     res.write(parts[i++]);
     setTimeout(next, opts.delay || 1);
   };
@@ -61,8 +81,8 @@ ok('esc 转义 HTML 特殊字符', () => {
 });
 
 ok('estTokens 同字符数下中文密度高于英文', () => {
-  const cn = app.estTokens([{ content: '汉字'.repeat(50) }]);   // 100 字
-  const en = app.estTokens([{ content: 'a'.repeat(100) }]);     // 100 字符
+  const cn = app.estTokens([{ content: '汉字'.repeat(50) }]); // 100 字
+  const en = app.estTokens([{ content: 'a'.repeat(100) }]); // 100 字符
   assert.ok(cn > en, `中文 ${cn} 应大于英文 ${en}`);
   assert.ok(cn > 0 && cn < 400, '估算应在合理范围: ' + cn);
 });
@@ -70,8 +90,9 @@ ok('estTokens 同字符数下中文密度高于英文', () => {
 ok('每次请求注入当前时间', () => {
   const msgs = app.buildApiMessages(
     { messages: [{ role: 'user', content: '今天几号', ts: 1 }] },
-    { system: '你是朋友', },
-    0, 999999
+    { system: '你是朋友' },
+    0,
+    999999
   );
   const sys = msgs[0].content;
   assert.equal(msgs[0].role, 'system');
@@ -81,7 +102,9 @@ ok('每次请求注入当前时间', () => {
 });
 
 ok('朗读前清洗 Markdown', () => {
-  const t = app.stripForSpeech('## 标题\n\n**粗体** 和 `inline` 和 [链接](https://x.com)\n\n```js\nconsole.log(1)\n```');
+  const t = app.stripForSpeech(
+    '## 标题\n\n**粗体** 和 `inline` 和 [链接](https://x.com)\n\n```js\nconsole.log(1)\n```'
+  );
   assert.ok(!t.includes('**'), '去掉粗体标记');
   assert.ok(!t.includes('`'), '去掉反引号');
   assert.ok(!t.includes('#'), '去掉标题井号');
@@ -119,7 +142,7 @@ ok('fmtTokens 数字格式化', () => {
 
 ok('isContextError 识别上下文超限', () => {
   assert.ok(app.isContextError(new Error('maximum context length is 65536 tokens')));
-  assert.ok(app.isContextError({ message: 'x', detail: 'This model\'s context length exceeded' }));
+  assert.ok(app.isContextError({ message: 'x', detail: "This model's context length exceeded" }));
   assert.ok(!app.isContextError(new Error('rate limit')));
   assert.ok(!app.isContextError(null));
 });
@@ -245,11 +268,13 @@ ok('保留 system 并限制轮数', () => {
 });
 
 ok('上下文保留图片块', () => {
-  const conv = { messages: [
-    { role: 'user', content: '看图', images: ['data:image/jpeg;base64,AAA'] },
-    { role: 'assistant', content: '看到了' },
-    { role: 'user', content: '', images: ['data:image/jpeg;base64,BBB'] }
-  ] };
+  const conv = {
+    messages: [
+      { role: 'user', content: '看图', images: ['data:image/jpeg;base64,AAA'] },
+      { role: 'assistant', content: '看到了' },
+      { role: 'user', content: '', images: ['data:image/jpeg;base64,BBB'] }
+    ]
+  };
   const msgs = app.buildApiMessages(conv, {}, 20, 999999).filter((m) => m.role !== 'system');
   assert.equal(msgs.length, 3);
   assert.deepEqual(msgs[0].images, ['data:image/jpeg;base64,AAA']);
@@ -327,11 +352,13 @@ ok('压缩提示词带上旧记忆与原文', () => {
 });
 
 ok('跳过报错消息', () => {
-  const conv = { messages: [
-    { role: 'user', content: '在吗' },
-    { role: 'assistant', content: '', error: '网络失败' },
-    { role: 'user', content: '再试' }
-  ] };
+  const conv = {
+    messages: [
+      { role: 'user', content: '在吗' },
+      { role: 'assistant', content: '', error: '网络失败' },
+      { role: 'user', content: '再试' }
+    ]
+  };
   const msgs = app.buildApiMessages(conv, {}, 20, 999999).filter((m) => m.role !== 'system');
   assert.equal(msgs.length, 2);
   assert.ok(msgs.every((m) => !m.error));
@@ -346,8 +373,11 @@ ok('超出预算时丢弃最旧消息', () => {
   const msgs = app.buildApiMessages(conv, {}, 40, 600);
   assert.ok(app.estTokens(msgs) <= 1200, '应显著裁剪，实际 ' + app.estTokens(msgs));
   assert.ok(msgs.length >= 2, '不能裁到空: ' + msgs.length);
-  assert.equal(msgs[msgs.length - 1].content, conv.messages[conv.messages.length - 1].content,
-    '必须保留最新的那条消息');
+  assert.equal(
+    msgs[msgs.length - 1].content,
+    conv.messages[conv.messages.length - 1].content,
+    '必须保留最新的那条消息'
+  );
 });
 
 console.log('\n\x1b[1m5. streamChat 端到端（本地 mock）\x1b[0m');
@@ -367,10 +397,15 @@ await okAsync('正常流式：reasoning + content + usage', async () => {
     streamOK(res, parts);
   });
   try {
-    let rSnap = '', cSnap = '', usage = null;
+    let rSnap = '',
+      cSnap = '',
+      usage = null;
     const r = await app.streamChat({
-      apiKey: 'sk-test', model: 'deepseek-chat', messages: [{ role: 'user', content: 'hi' }],
-      endpoint: url, temperature: 1.0,
+      apiKey: 'sk-test',
+      model: 'deepseek-chat',
+      messages: [{ role: 'user', content: 'hi' }],
+      endpoint: url,
+      temperature: 1.0,
       onReasoning: (x) => (rSnap = x),
       onContent: (x) => (cSnap = x),
       onUsage: (u) => (usage = u)
@@ -380,26 +415,37 @@ await okAsync('正常流式：reasoning + content + usage', async () => {
     assert.equal(cSnap, '你好');
     assert.equal(rSnap, '先想一下');
     assert.equal(usage.prompt_tokens, 11);
-  } finally { srv.close(); }
+  } finally {
+    srv.close();
+  }
 });
 
 await okAsync('UTF-8 多字节字符被切成两半也能拼回', async () => {
-  const payload = Buffer.from(sse({ choices: [{ delta: { content: '中文👋emoji' } }] }) + 'data: [DONE]\n\n');
+  const payload = Buffer.from(
+    sse({ choices: [{ delta: { content: '中文👋emoji' } }] }) + 'data: [DONE]\n\n'
+  );
   const { srv, url } = await mock((req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/event-stream' });
     // 在 emoji 中间切一刀
     let cut = payload.indexOf(Buffer.from('👋'));
     cut += 2;
     res.write(payload.subarray(0, cut));
-    setTimeout(() => { res.write(payload.subarray(cut)); res.end(); }, 10);
+    setTimeout(() => {
+      res.write(payload.subarray(cut));
+      res.end();
+    }, 10);
   });
   try {
     const r = await app.streamChat({
-      apiKey: 'k', model: 'deepseek-chat', endpoint: url,
+      apiKey: 'k',
+      model: 'deepseek-chat',
+      endpoint: url,
       messages: [{ role: 'user', content: 'x' }]
     });
     assert.equal(r.content, '中文👋emoji');
-  } finally { srv.close(); }
+  } finally {
+    srv.close();
+  }
 });
 
 await okAsync('401 抛出友好错误', async () => {
@@ -409,7 +455,13 @@ await okAsync('401 抛出友好错误', async () => {
   });
   try {
     await assert.rejects(
-      () => app.streamChat({ apiKey: 'bad', model: 'deepseek-chat', endpoint: url, messages: [{ role: 'user', content: 'x' }] }),
+      () =>
+        app.streamChat({
+          apiKey: 'bad',
+          model: 'deepseek-chat',
+          endpoint: url,
+          messages: [{ role: 'user', content: 'x' }]
+        }),
       (e) => {
         assert.equal(e.status, 401);
         assert.ok(/API Key/.test(e.message), e.message);
@@ -417,7 +469,9 @@ await okAsync('401 抛出友好错误', async () => {
         return true;
       }
     );
-  } finally { srv.close(); }
+  } finally {
+    srv.close();
+  }
 });
 
 await okAsync('402 余额不足', async () => {
@@ -427,10 +481,22 @@ await okAsync('402 余额不足', async () => {
   });
   try {
     await assert.rejects(
-      () => app.streamChat({ apiKey: 'k', model: 'deepseek-chat', endpoint: url, messages: [{ role: 'user', content: 'x' }] }),
-      (e) => { assert.equal(e.status, 402); assert.ok(/余额/.test(e.message)); return true; }
+      () =>
+        app.streamChat({
+          apiKey: 'k',
+          model: 'deepseek-chat',
+          endpoint: url,
+          messages: [{ role: 'user', content: 'x' }]
+        }),
+      (e) => {
+        assert.equal(e.status, 402);
+        assert.ok(/余额/.test(e.message));
+        return true;
+      }
     );
-  } finally { srv.close(); }
+  } finally {
+    srv.close();
+  }
 });
 
 await okAsync('服务端拒绝 stream_options 时自动降级重试', async () => {
@@ -439,21 +505,29 @@ await okAsync('服务端拒绝 stream_options 时自动降级重试', async () =
     bodies.push(json);
     if (bodies.length === 1) {
       res.writeHead(400, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: { message: 'Unrecognized request argument supplied: stream_options' } }));
+      res.end(
+        JSON.stringify({
+          error: { message: 'Unrecognized request argument supplied: stream_options' }
+        })
+      );
       return;
     }
     streamOK(res, [sse({ choices: [{ delta: { content: 'ok' } }] }), 'data: [DONE]\n\n']);
   });
   try {
     const r = await app.streamChat({
-      apiKey: 'k', model: 'deepseek-chat', endpoint: url,
+      apiKey: 'k',
+      model: 'deepseek-chat',
+      endpoint: url,
       messages: [{ role: 'user', content: 'x' }]
     });
     assert.equal(r.content, 'ok');
     assert.equal(bodies.length, 2, '应请求两次');
     assert.ok(bodies[0].stream_options, '第一次带 stream_options');
     assert.ok(!bodies[1].stream_options, '第二次不带');
-  } finally { srv.close(); }
+  } finally {
+    srv.close();
+  }
 });
 
 await okAsync('思考模式：开=thinking+effort，关=temperature', async () => {
@@ -464,8 +538,12 @@ await okAsync('思考模式：开=thinking+effort，关=temperature', async () =
   });
   try {
     await app.streamChat({
-      apiKey: 'k', model: 'deepseek-flash', endpoint: url,
-      thinking: true, effort: 'max', temperature: 1.2,
+      apiKey: 'k',
+      model: 'deepseek-flash',
+      endpoint: url,
+      thinking: true,
+      effort: 'max',
+      temperature: 1.2,
       messages: [{ role: 'user', content: 'x' }]
     });
     assert.deepEqual(bodies[0].thinking, { type: 'enabled' });
@@ -473,14 +551,19 @@ await okAsync('思考模式：开=thinking+effort，关=temperature', async () =
     assert.equal(bodies[0].temperature, undefined, '思考模式下不应带 temperature');
 
     await app.streamChat({
-      apiKey: 'k', model: 'deepseek-flash', endpoint: url,
-      thinking: false, temperature: 0.7,
+      apiKey: 'k',
+      model: 'deepseek-flash',
+      endpoint: url,
+      thinking: false,
+      temperature: 0.7,
       messages: [{ role: 'user', content: 'x' }]
     });
     assert.deepEqual(bodies[1].thinking, { type: 'disabled' });
     assert.equal(bodies[1].temperature, 0.7);
     assert.equal(bodies[1].reasoning_effort, undefined, '关闭思考不应带 effort');
-  } finally { srv.close(); }
+  } finally {
+    srv.close();
+  }
 });
 
 await okAsync('图片消息转成 image_url 内容块', async () => {
@@ -491,7 +574,9 @@ await okAsync('图片消息转成 image_url 内容块', async () => {
   });
   try {
     await app.streamChat({
-      apiKey: 'k', model: 'deepseek-flash', endpoint: url,
+      apiKey: 'k',
+      model: 'deepseek-flash',
+      endpoint: url,
       messages: [{ role: 'user', content: '这是什么', images: ['data:image/jpeg;base64,AAAA'] }]
     });
     const c = seen.messages[0].content;
@@ -500,7 +585,9 @@ await okAsync('图片消息转成 image_url 内容块', async () => {
     assert.equal(c[0].text, '这是什么');
     assert.equal(c[1].type, 'image_url');
     assert.ok(c[1].image_url.url.startsWith('data:image/jpeg;base64,'), c[1].image_url.url);
-  } finally { srv.close(); }
+  } finally {
+    srv.close();
+  }
 });
 
 await okAsync('纯图片消息（无文字）也能发出', async () => {
@@ -511,13 +598,17 @@ await okAsync('纯图片消息（无文字）也能发出', async () => {
   });
   try {
     await app.streamChat({
-      apiKey: 'k', model: 'deepseek-flash', endpoint: url,
+      apiKey: 'k',
+      model: 'deepseek-flash',
+      endpoint: url,
       messages: [{ role: 'user', content: '', images: ['data:image/png;base64,BBBB'] }]
     });
     const c = seen.messages[0].content;
     assert.equal(c.length, 1, '只有图片块');
     assert.equal(c[0].type, 'image_url');
-  } finally { srv.close(); }
+  } finally {
+    srv.close();
+  }
 });
 
 await okAsync('空回答 → 抛 EMPTY', async () => {
@@ -526,10 +617,21 @@ await okAsync('空回答 → 抛 EMPTY', async () => {
   });
   try {
     await assert.rejects(
-      () => app.streamChat({ apiKey: 'k', model: 'deepseek-chat', endpoint: url, messages: [{ role: 'user', content: 'x' }] }),
-      (e) => { assert.equal(e.code, 'EMPTY'); return true; }
+      () =>
+        app.streamChat({
+          apiKey: 'k',
+          model: 'deepseek-chat',
+          endpoint: url,
+          messages: [{ role: 'user', content: 'x' }]
+        }),
+      (e) => {
+        assert.equal(e.code, 'EMPTY');
+        return true;
+      }
     );
-  } finally { srv.close(); }
+  } finally {
+    srv.close();
+  }
 });
 
 await okAsync('中止请求 → AbortError', async () => {
@@ -542,26 +644,44 @@ await okAsync('中止请求 → AbortError', async () => {
     const ac = new AbortController();
     setTimeout(() => ac.abort(), 60);
     await assert.rejects(
-      () => app.streamChat({
-        apiKey: 'k', model: 'deepseek-chat', endpoint: url, signal: ac.signal,
-        messages: [{ role: 'user', content: 'x' }]
-      }),
-      (e) => { assert.equal(e.name, 'AbortError'); return true; }
+      () =>
+        app.streamChat({
+          apiKey: 'k',
+          model: 'deepseek-chat',
+          endpoint: url,
+          signal: ac.signal,
+          messages: [{ role: 'user', content: 'x' }]
+        }),
+      (e) => {
+        assert.equal(e.name, 'AbortError');
+        return true;
+      }
     );
-  } finally { srv.close(); }
+  } finally {
+    srv.close();
+  }
 });
 
 await okAsync('网络不可达 → 友好提示', async () => {
   await assert.rejects(
-    () => app.streamChat({
-      apiKey: 'k', model: 'deepseek-chat',
-      endpoint: 'http://127.0.0.1:1/chat/completions',
-      messages: [{ role: 'user', content: 'x' }]
-    }),
-    (e) => { assert.equal(e.code, 'NETWORK'); assert.ok(/网络/.test(e.message)); return true; }
+    () =>
+      app.streamChat({
+        apiKey: 'k',
+        model: 'deepseek-chat',
+        endpoint: 'http://127.0.0.1:1/chat/completions',
+        messages: [{ role: 'user', content: 'x' }]
+      }),
+    (e) => {
+      assert.equal(e.code, 'NETWORK');
+      assert.ok(/网络/.test(e.message));
+      return true;
+    }
   );
 });
 
 /* ---------- summary ---------- */
 console.log(`\n${fail === 0 ? '\x1b[32m' : '\x1b[31m'}${pass} passed, ${fail} failed\x1b[0m`);
-if (fail) { console.log('失败用例：', fails.join(' / ')); process.exit(1); }
+if (fail) {
+  console.log('失败用例：', fails.join(' / '));
+  process.exit(1);
+}

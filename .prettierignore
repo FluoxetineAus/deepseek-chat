@@ -1,0 +1,5 @@
+_build/
+node_modules/
+index.html
+_src/index.template.html
+package-lock.json

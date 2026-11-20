@@ -21,9 +21,7 @@ const js = fs.readFileSync(path.join(HERE, 'app.js'), 'utf8');
 
 if (/<\/script>/i.test(js)) throw new Error('app.js 含有 </script>，无法内联');
 
-const out = tpl
-  .replace('{{CSS}}', () => css.trim())
-  .replace('{{JS}}', () => js.trim());
+const out = tpl.replace('{{CSS}}', () => css.trim()).replace('{{JS}}', () => js.trim());
 
 if (out.includes('{{')) throw new Error('还有未替换的占位符');
 

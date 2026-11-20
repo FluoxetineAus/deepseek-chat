@@ -44,18 +44,59 @@ function ensureCerts() {
 
   if (!fs.existsSync(caKey) || !fs.existsSync(caCrt)) {
     console.log('生成自签 CA…');
-    sh('openssl', ['req', '-x509', '-newkey', 'rsa:2048', '-sha256', '-days', '3650', '-nodes',
-      '-keyout', caKey, '-out', caCrt, '-subj', '/CN=DeepSeek Local CA/O=deepseek-chat']);
+    sh('openssl', [
+      'req',
+      '-x509',
+      '-newkey',
+      'rsa:2048',
+      '-sha256',
+      '-days',
+      '3650',
+      '-nodes',
+      '-keyout',
+      caKey,
+      '-out',
+      caCrt,
+      '-subj',
+      '/CN=DeepSeek Local CA/O=deepseek-chat'
+    ]);
   }
   if (!fs.existsSync(srvKey) || !fs.existsSync(srvCrt)) {
     console.log('生成服务器证书…');
     const csr = path.join(CERTS, 'server.csr');
-    sh('openssl', ['req', '-newkey', 'rsa:2048', '-sha256', '-nodes',
-      '-keyout', srvKey, '-out', csr, '-subj', `/CN=${HOST}`]);
+    sh('openssl', [
+      'req',
+      '-newkey',
+      'rsa:2048',
+      '-sha256',
+      '-nodes',
+      '-keyout',
+      srvKey,
+      '-out',
+      csr,
+      '-subj',
+      `/CN=${HOST}`
+    ]);
     const ext = path.join(CERTS, 'san.cnf');
     fs.writeFileSync(ext, `subjectAltName=IP:${HOST},IP:127.0.0.1,DNS:localhost\n`);
-    sh('openssl', ['x509', '-req', '-in', csr, '-CA', caCrt, '-CAkey', caKey,
-      '-CAcreateserial', '-out', srvCrt, '-days', '825', '-sha256', '-extfile', ext]);
+    sh('openssl', [
+      'x509',
+      '-req',
+      '-in',
+      csr,
+      '-CA',
+      caCrt,
+      '-CAkey',
+      caKey,
+      '-CAcreateserial',
+      '-out',
+      srvCrt,
+      '-days',
+      '825',
+      '-sha256',
+      '-extfile',
+      ext
+    ]);
     fs.unlinkSync(csr);
   }
   return {
@@ -68,8 +109,14 @@ function ensureCerts() {
 const { key, cert, ca } = ensureCerts();
 
 const ALLOW = new Set([
-  '/', '/index.html', '/icon-180.png', '/icon-512.png', '/icon-1024.png',
-  '/avatar.jpg', '/ca.crt', '/favicon.ico'
+  '/',
+  '/index.html',
+  '/icon-180.png',
+  '/icon-512.png',
+  '/icon-1024.png',
+  '/avatar.jpg',
+  '/ca.crt',
+  '/favicon.ico'
 ]);
 
 const MIME = {
@@ -128,15 +175,17 @@ https.createServer({ key, cert }, handler).listen(PORT, '0.0.0.0', () => {
 });
 
 // 顺便在 8080 提供一个 http 版，方便下载证书
-http.createServer((req, res) => {
-  if ((req.url || '').split('?')[0] === '/ca.crt') {
-    res.writeHead(200, {
-      'Content-Type': 'application/x-x509-ca-cert',
-      'Content-Disposition': 'attachment; filename="deepseek-local-ca.crt"'
-    });
-    res.end(ca);
-    return;
-  }
-  res.writeHead(302, { Location: 'https://' + HOST + ':' + PORT + (req.url || '/') });
-  res.end();
-}).listen(8080, '0.0.0.0');
+http
+  .createServer((req, res) => {
+    if ((req.url || '').split('?')[0] === '/ca.crt') {
+      res.writeHead(200, {
+        'Content-Type': 'application/x-x509-ca-cert',
+        'Content-Disposition': 'attachment; filename="deepseek-local-ca.crt"'
+      });
+      res.end(ca);
+      return;
+    }
+    res.writeHead(302, { Location: 'https://' + HOST + ':' + PORT + (req.url || '/') });
+    res.end();
+  })
+  .listen(8080, '0.0.0.0');

@@ -19,7 +19,6 @@ const BACKUP = path.join(ROOT, 'backups');
 const HTTP_PORT = Number(process.env.PORT || 8000);
 const HTTPS_PORT = Number(process.env.TLS_PORT || 8443);
 const MAX_BODY = 24 * 1024 * 1024;
-const KEEP = 30;
 
 function lanIP() {
   const nets = os.networkInterfaces();
@@ -43,20 +42,65 @@ function ensureCerts() {
   const run = (a) => execFileSync('openssl', a, { stdio: 'pipe' });
 
   if (!fs.existsSync(caKey) || !fs.existsSync(caCrt)) {
-    run(['req', '-x509', '-newkey', 'rsa:2048', '-sha256', '-days', '3650', '-nodes',
-      '-keyout', caKey, '-out', caCrt, '-subj', '/CN=DeepSeek Local CA/O=deepseek-chat']);
+    run([
+      'req',
+      '-x509',
+      '-newkey',
+      'rsa:2048',
+      '-sha256',
+      '-days',
+      '3650',
+      '-nodes',
+      '-keyout',
+      caKey,
+      '-out',
+      caCrt,
+      '-subj',
+      '/CN=DeepSeek Local CA/O=deepseek-chat'
+    ]);
   }
   if (!fs.existsSync(srvKey) || !fs.existsSync(srvCrt)) {
     const csr = path.join(CERTS, 'server.csr');
-    run(['req', '-newkey', 'rsa:2048', '-sha256', '-nodes', '-keyout', srvKey, '-out', csr,
-      '-subj', `/CN=${HOST}`]);
+    run([
+      'req',
+      '-newkey',
+      'rsa:2048',
+      '-sha256',
+      '-nodes',
+      '-keyout',
+      srvKey,
+      '-out',
+      csr,
+      '-subj',
+      `/CN=${HOST}`
+    ]);
     const ext = path.join(CERTS, 'san.cnf');
     fs.writeFileSync(ext, `subjectAltName=IP:${HOST},IP:127.0.0.1,DNS:localhost\n`);
-    run(['x509', '-req', '-in', csr, '-CA', caCrt, '-CAkey', caKey, '-CAcreateserial',
-      '-out', srvCrt, '-days', '825', '-sha256', '-extfile', ext]);
+    run([
+      'x509',
+      '-req',
+      '-in',
+      csr,
+      '-CA',
+      caCrt,
+      '-CAkey',
+      caKey,
+      '-CAcreateserial',
+      '-out',
+      srvCrt,
+      '-days',
+      '825',
+      '-sha256',
+      '-extfile',
+      ext
+    ]);
     fs.unlinkSync(csr);
   }
-  return { key: fs.readFileSync(srvKey), cert: fs.readFileSync(srvCrt), ca: fs.readFileSync(caCrt) };
+  return {
+    key: fs.readFileSync(srvKey),
+    cert: fs.readFileSync(srvCrt),
+    ca: fs.readFileSync(caCrt)
+  };
 }
 
 /* ---------- 备份 ---------- */
@@ -66,7 +110,9 @@ const AUTO = path.join(PRIMARY, 'auto');
 // 多份落盘：项目目录、文稿、iCloud（存在才用），互为冗余
 const MIRRORS = [];
 if (process.env.DSH_BACKUP_DIRS) {
-  process.env.DSH_BACKUP_DIRS.split(':').filter(Boolean).forEach((d) => MIRRORS.push(d));
+  process.env.DSH_BACKUP_DIRS.split(':')
+    .filter(Boolean)
+    .forEach((d) => MIRRORS.push(d));
 } else {
   MIRRORS.push(PRIMARY);
   MIRRORS.push(path.join(os.homedir(), 'Documents', 'DeepSeek 对话备份'));
@@ -75,7 +121,9 @@ if (process.env.DSH_BACKUP_DIRS) {
 }
 
 for (const d of MIRRORS) {
-  try { fs.mkdirSync(path.join(d, 'auto'), { recursive: true }); } catch (e) {}
+  try {
+    fs.mkdirSync(path.join(d, 'auto'), { recursive: true });
+  } catch (e) {}
 }
 
 function sha256(text) {
@@ -99,7 +147,11 @@ function writeAtomic(file, text) {
 
 function readLatestHash() {
   const f = path.join(PRIMARY, 'latest.json');
-  try { return sha256(fs.readFileSync(f, 'utf8')); } catch (e) { return ''; }
+  try {
+    return sha256(fs.readFileSync(f, 'utf8'));
+  } catch (e) {
+    return '';
+  }
 }
 
 function stamp(d = new Date()) {
@@ -110,26 +162,35 @@ function stamp(d = new Date()) {
 function parseStamp(name) {
   const m = /^chat-(\d{8})-(\d{6})/.exec(name);
   if (!m) return 0;
-  const y = +m[1].slice(0, 4), mo = +m[1].slice(4, 6) - 1, d = +m[1].slice(6, 8);
-  const h = +m[2].slice(0, 2), mi = +m[2].slice(2, 4), se = +m[2].slice(4, 6);
+  const y = +m[1].slice(0, 4),
+    mo = +m[1].slice(4, 6) - 1,
+    d = +m[1].slice(6, 8);
+  const h = +m[2].slice(0, 2),
+    mi = +m[2].slice(2, 4),
+    se = +m[2].slice(4, 6);
   return new Date(y, mo, d, h, mi, se).getTime();
 }
 
 function listSnapshots(dir = AUTO) {
   try {
-    return fs.readdirSync(dir)
+    return fs
+      .readdirSync(dir)
       .filter((f) => /^chat-\d{8}-\d{6}(-[0-9a-f]{8})?\.json$/.test(f))
       .map((f) => {
         const st = fs.statSync(path.join(dir, f));
         return { name: f, size: st.size, at: parseStamp(f) };
       })
       .sort((a, b) => b.at - a.at);
-  } catch (e) { return []; }
+  } catch (e) {
+    return [];
+  }
 }
 
 /** 保留策略：最近 24 小时全留；更早的每天留最后一份；总数不超过 120 */
 function prune(dir) {
-  const all = listSnapshots(dir).slice().sort((a, b) => a.at - b.at);
+  const all = listSnapshots(dir)
+    .slice()
+    .sort((a, b) => a.at - b.at);
   const now = Date.now();
   const keep = new Set();
   const byDay = new Map();
@@ -143,12 +204,12 @@ function prune(dir) {
   const keepSet = new Set(kept);
   for (const s of all) {
     if (!keepSet.has(s.name)) {
-      try { fs.unlinkSync(path.join(dir, s.name)); } catch (e) {}
+      try {
+        fs.unlinkSync(path.join(dir, s.name));
+      } catch (e) {}
     }
   }
 }
-
-let lastSaveAt = 0;
 
 function saveBackup(text) {
   const data = JSON.parse(text);
@@ -177,21 +238,27 @@ function saveBackup(text) {
   }
 
   if (!written.length) throw new Error('所有位置都写入失败');
-  lastSaveAt = Date.now();
   return { name, size: Buffer.byteLength(text), hash: hash.slice(0, 8), locations: written.length };
 }
 
 /* ---------- 静态资源 ---------- */
 const ALLOW = new Set([
-  '/', '/index.html', '/icon-180.png', '/icon-512.png', '/icon-1024.png',
-  '/avatar.jpg', '/ca.crt', '/favicon.ico'
+  '/',
+  '/index.html',
+  '/icon-180.png',
+  '/icon-512.png',
+  '/icon-1024.png',
+  '/avatar.jpg',
+  '/ca.crt',
+  '/favicon.ico'
 ]);
 const MIME = {
-  '.html': 'text/html; charset=utf-8', '.png': 'image/png', '.jpg': 'image/jpeg',
-  '.ico': 'image/x-icon', '.crt': 'application/x-x509-ca-cert'
+  '.html': 'text/html; charset=utf-8',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.ico': 'image/x-icon',
+  '.crt': 'application/x-x509-ca-cert'
 };
-
-const started = Date.now();
 
 function handler(req, res, ca) {
   const url = (req.url || '/').split('?')[0];
@@ -201,7 +268,9 @@ function handler(req, res, ca) {
     const ua = req.headers['user-agent'] || '';
     const isIOS = /iPhone|iPad|iPod/.test(ua);
     const standalone = isIOS && !/Safari\//.test(ua) ? ' [独立App]' : '';
-    console.log(`${new Date().toISOString()} ${req.headers.host || ''} ${req.method} ${url}${standalone}`);
+    console.log(
+      `${new Date().toISOString()} ${req.headers.host || ''} ${req.method} ${url}${standalone}`
+    );
   }
 
   if (url === '/api/backup' && req.method === 'POST') {
@@ -209,7 +278,10 @@ function handler(req, res, ca) {
     const chunks = [];
     req.on('data', (c) => {
       size += c.length;
-      if (size > MAX_BODY) { req.destroy(); return; }
+      if (size > MAX_BODY) {
+        req.destroy();
+        return;
+      }
       chunks.push(c);
     });
     req.on('end', () => {
@@ -241,11 +313,13 @@ function handler(req, res, ca) {
 
   if (url === '/api/backup/list') {
     res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
-    res.end(JSON.stringify({
-      ok: true,
-      locations: MIRRORS.length,
-      snapshots: listSnapshots().slice(0, 30)
-    }));
+    res.end(
+      JSON.stringify({
+        ok: true,
+        locations: MIRRORS.length,
+        snapshots: listSnapshots().slice(0, 30)
+      })
+    );
     return;
   }
 
@@ -301,7 +375,8 @@ function handler(req, res, ca) {
 
 const { key, cert, ca } = ensureCerts();
 
-http.createServer((req, res) => handler(req, res, ca))
+http
+  .createServer((req, res) => handler(req, res, ca))
   .listen(HTTP_PORT, '0.0.0.0', () => {
     console.log('────────────────────────────────────────');
     console.log(` 普通版  http://${HOST}:${HTTP_PORT}`);
@@ -311,5 +386,6 @@ http.createServer((req, res) => handler(req, res, ca))
     console.log('────────────────────────────────────────');
   });
 
-https.createServer({ key, cert }, (req, res) => handler(req, res, ca))
+https
+  .createServer({ key, cert }, (req, res) => handler(req, res, ca))
   .listen(HTTPS_PORT, '0.0.0.0');

@@ -363,13 +363,20 @@ V3 时代的 `deepseek-chat` / `deepseek-reasoner` 已经不在官方定价页�
 ## 二次开发
 
 ```bash
-cd deepseek-chat
-
-node _src/build.mjs    # 静态检查 + 把 _src/ 里的 css+js 内联成 index.html
-node _src/lint.mjs     # 单独跑静态检查：有没有调用未定义的函数
-node _src/test.mjs     # 38 项单元 / 集成测试（含本地 mock 流式服务）
-node _src/gen-icon.mjs # 重新生成图标
+npm run build    # 静态检查 + 把 _src/ 里的 css+js 内联成 index.html
+npm test         # 静态检查 + 40 项单元 / 集成测试（含本地 mock 流式服务）
+npm run lint     # 只跑静态检查：未定义函数、未声明常量
+npm run eslint   # ESLint（no-undef / 未使用变量 / 重复键 等）
+npm run format   # Prettier 格式化 _src/
+npm run serve    # 起本地服务（HTTP 8000 + HTTPS 8443 + 备份接口）
+npm run icons    # 重新生成图标
 ```
+
+VS Code 里：
+
+- `Cmd+Shift+B` 跑构建
+- 保存时自动 Prettier 格式化
+- 装了推荐插件（Prettier / ESLint / GitLens）后错误会直接标红
 
 测试覆盖：SSE 分片解析（跨块、CRLF、多字节字符切断）、Markdown 渲染与 XSS 转义、
 上下文裁剪、401/402/400 错误路径、`stream_options` 降级重试、R1 不传温度、中止与断网。

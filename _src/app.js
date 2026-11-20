@@ -7,16 +7,21 @@
   var PREV_KEY = 'dschat.v1.prev';
   var CONTEXT_BUDGET = 800000;
   var CTX_LIMIT = 1000000;
-  var MEM_TRIGGER = 150000;   // 到达这个量就自动压缩记忆
-  var MEM_KEEP = 6;           // 压缩后保留最近几条原文
+  var MEM_TRIGGER = 150000; // 到达这个量就自动压缩记忆
+  var MEM_KEEP = 6; // 压缩后保留最近几条原文
   var MEM_LEVELS = {
-    brief:  { past: 5,  pastLen: 30, recent: 8,  recentLen: 30, desc: '只留骨架' },
+    brief: { past: 5, pastLen: 30, recent: 8, recentLen: 30, desc: '只留骨架' },
     normal: { past: 10, pastLen: 45, recent: 12, recentLen: 45, desc: '够用' },
-    rich:   { past: 20, pastLen: 80, recent: 24, recentLen: 80, desc: '尽量留住细节' }
+    rich: { past: 20, pastLen: 80, recent: 24, recentLen: 80, desc: '尽量留住细节' }
   };
 
   var MODELS = [
-    { id: 'deepseek-flash', name: 'V4.1 Flash', desc: '1M 上下文，原生支持识图，速度与效果最均衡', vision: true },
+    {
+      id: 'deepseek-flash',
+      name: 'V4.1 Flash',
+      desc: '1M 上下文，原生支持识图，速度与效果最均衡',
+      vision: true
+    },
     { id: 'deepseek-v4-pro', name: 'V4 Pro', desc: '复杂推理更强，暂不支持识图', vision: false }
   ];
   var LEGACY_MODEL = { 'deepseek-chat': 'deepseek-flash', 'deepseek-reasoner': 'deepseek-flash' };
@@ -54,7 +59,9 @@
         var code = c.charCodeAt(j);
         if (code >= 0x4e00 && code <= 0x9fff) han++;
       }
-      n += 4 + ((msgs[i].images && msgs[i].images.length) || 0) * 1000 +
+      n +=
+        4 +
+        ((msgs[i].images && msgs[i].images.length) || 0) * 1000 +
         Math.ceil(han * 0.8 + (c.length - han) * 0.28);
     }
     return n;
@@ -63,17 +70,35 @@
   function nowLine() {
     var d = new Date();
     var w = ['日', '一', '二', '三', '四', '五', '六'][d.getDay()];
-    var p = function (n) { return ('0' + n).slice(-2); };
+    var p = function (n) {
+      return ('0' + n).slice(-2);
+    };
     var tz = 'Asia/Shanghai';
-    try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || tz; } catch (e) {}
-    return d.getFullYear() + '年' + (d.getMonth() + 1) + '月' + d.getDate() + '日 星期' + w +
-      ' ' + p(d.getHours()) + ':' + p(d.getMinutes()) + '（' + tz + '）';
+    try {
+      tz = Intl.DateTimeFormat().resolvedOptions().timeZone || tz;
+    } catch (e) {}
+    return (
+      d.getFullYear() +
+      '年' +
+      (d.getMonth() + 1) +
+      '月' +
+      d.getDate() +
+      '日 星期' +
+      w +
+      ' ' +
+      p(d.getHours()) +
+      ':' +
+      p(d.getMinutes()) +
+      '（' +
+      tz +
+      '）'
+    );
   }
 
   function shortDate() {
     var d = new Date();
     var w = ['日', '一', '二', '三', '四', '五', '六'][d.getDay()];
-    return (d.getMonth() + 1) + '月' + d.getDate() + '日 周' + w;
+    return d.getMonth() + 1 + '月' + d.getDate() + '日 周' + w;
   }
 
   function stripForSpeech(md) {
@@ -95,8 +120,8 @@
     if (v === '' || v === null || v === undefined) return 60;
     var kt = Number(v);
     if (!isFinite(kt) || kt < 0) return 60;
-    if (kt === 0 || kt === 20 || kt === 60) return kt;   // 0 = 长记忆，必须原样保留
-    return kt <= 30 ? 20 : (kt <= 80 ? 60 : 0);
+    if (kt === 0 || kt === 20 || kt === 60) return kt; // 0 = 长记忆，必须原样保留
+    return kt <= 30 ? 20 : kt <= 80 ? 60 : 0;
   }
 
   function fmtTokens(n) {
@@ -132,10 +157,14 @@
     s = s.replace(/__([^_]+?)__/g, '<strong>$1</strong>');
     s = s.replace(/(^|[^*\w])\*([^*\n]+?)\*(?!\*)/g, '$1<em>$2</em>');
     s = s.replace(/~~([^~]+?)~~/g, '<del>$1</del>');
-    s = s.replace(/\[([^\]\n]+)\]\((https?:\/\/[^)\s]+)\)/g,
-      '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
-    s = s.replace(/(^|[\s(（])(https?:\/\/[^\s<>"'）)]+)/g,
-      '$1<a href="$2" target="_blank" rel="noopener noreferrer">$2</a>');
+    s = s.replace(
+      /\[([^\]\n]+)\]\((https?:\/\/[^)\s]+)\)/g,
+      '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>'
+    );
+    s = s.replace(
+      /(^|[\s(（])(https?:\/\/[^\s<>"'）)]+)/g,
+      '$1<a href="$2" target="_blank" rel="noopener noreferrer">$2</a>'
+    );
     s = s.replace(/\u0000S(\d+)\u0000/g, function (m, i) {
       return '<code>' + spans[+i] + '</code>';
     });
@@ -144,19 +173,30 @@
 
   function codeBlockHTML(c) {
     var lang = (c.lang || '').toLowerCase();
-    return '<div class="code"><div class="code-hd"><span class="lang">' +
-      esc(lang || 'text') + '</span><button class="cp" type="button" data-cp>复制</button></div>' +
-      '<pre><code>' + c.body.replace(/\n+$/, '') + '</code></pre></div>';
+    return (
+      '<div class="code"><div class="code-hd"><span class="lang">' +
+      esc(lang || 'text') +
+      '</span><button class="cp" type="button" data-cp>复制</button></div>' +
+      '<pre><code>' +
+      c.body.replace(/\n+$/, '') +
+      '</code></pre></div>'
+    );
   }
 
   function splitRow(line) {
-    return line.replace(/^\s*\|/, '').replace(/\|\s*$/, '').split('|').map(function (c) {
-      return c.trim();
-    });
+    return line
+      .replace(/^\s*\|/, '')
+      .replace(/\|\s*$/, '')
+      .split('|')
+      .map(function (c) {
+        return c.trim();
+      });
   }
 
   function startsBlock(line) {
-    return /^(#{1,6}\s|&gt;\s?|&gt;$|```|\u0000C\d+\u0000|(?:---|\*\*\*|___)\s*$|\s*[-*+]\s+|\s*\d+[.)]\s+|\|.*\|)/.test(line);
+    return /^(#{1,6}\s|&gt;\s?|&gt;$|```|\u0000C\d+\u0000|(?:---|\*\*\*|___)\s*$|\s*[-*+]\s+|\s*\d+[.)]\s+|\|.*\|)/.test(
+      line
+    );
   }
 
   function renderMD(src) {
@@ -178,10 +218,17 @@
     while (i < lines.length) {
       var line = lines[i];
 
-      if (/^\s*$/.test(line)) { i++; continue; }
+      if (/^\s*$/.test(line)) {
+        i++;
+        continue;
+      }
 
       var ph = line.match(/^\u0000C(\d+)\u0000\s*$/);
-      if (ph) { out.push(codeBlockHTML(codes[+ph[1]])); i++; continue; }
+      if (ph) {
+        out.push(codeBlockHTML(codes[+ph[1]]));
+        i++;
+        continue;
+      }
 
       var h = line.match(/^(#{1,6})\s+(.*)$/);
       if (h) {
@@ -191,7 +238,11 @@
         continue;
       }
 
-      if (/^\s*(?:---|\*\*\*|___)\s*$/.test(line)) { out.push('<hr>'); i++; continue; }
+      if (/^\s*(?:---|\*\*\*|___)\s*$/.test(line)) {
+        out.push('<hr>');
+        i++;
+        continue;
+      }
 
       if (/^&gt;\s?/.test(line) || line === '&gt;') {
         var q = [];
@@ -199,23 +250,55 @@
           q.push(lines[i].replace(/^&gt;\s?/, ''));
           i++;
         }
-        out.push('<blockquote>' + q.map(function (t) {
-          return '<p>' + inlineMD(t) + '</p>';
-        }).join('') + '</blockquote>');
+        out.push(
+          '<blockquote>' +
+            q
+              .map(function (t) {
+                return '<p>' + inlineMD(t) + '</p>';
+              })
+              .join('') +
+            '</blockquote>'
+        );
         continue;
       }
 
       // table
-      if (/^\s*\|.*\|\s*$/.test(line) && i + 1 < lines.length && /^\s*\|[\s:|-]+\|\s*$/.test(lines[i + 1])) {
+      if (
+        /^\s*\|.*\|\s*$/.test(line) &&
+        i + 1 < lines.length &&
+        /^\s*\|[\s:|-]+\|\s*$/.test(lines[i + 1])
+      ) {
         var head = splitRow(line);
         i += 2;
         var rows = [];
-        while (i < lines.length && /^\s*\|.*\|\s*$/.test(lines[i])) { rows.push(splitRow(lines[i])); i++; }
-        var th = '<tr>' + head.map(function (c) { return '<th>' + inlineMD(c) + '</th>'; }).join('') + '</tr>';
-        var tb = rows.map(function (r) {
-          return '<tr>' + r.map(function (c) { return '<td>' + inlineMD(c) + '</td>'; }).join('') + '</tr>';
-        }).join('');
-        out.push('<div class="tbl"><table><thead>' + th + '</thead><tbody>' + tb + '</tbody></table></div>');
+        while (i < lines.length && /^\s*\|.*\|\s*$/.test(lines[i])) {
+          rows.push(splitRow(lines[i]));
+          i++;
+        }
+        var th =
+          '<tr>' +
+          head
+            .map(function (c) {
+              return '<th>' + inlineMD(c) + '</th>';
+            })
+            .join('') +
+          '</tr>';
+        var tb = rows
+          .map(function (r) {
+            return (
+              '<tr>' +
+              r
+                .map(function (c) {
+                  return '<td>' + inlineMD(c) + '</td>';
+                })
+                .join('') +
+              '</tr>'
+            );
+          })
+          .join('');
+        out.push(
+          '<div class="tbl"><table><thead>' + th + '</thead><tbody>' + tb + '</tbody></table></div>'
+        );
         continue;
       }
 
@@ -236,12 +319,25 @@
           i++;
         }
         var tag = ordered ? 'ol' : 'ul';
-        var li = items.map(function (it) {
-          var sub = it.sub && it.sub.length
-            ? '<' + tag + '>' + it.sub.map(function (x) { return '<li>' + inlineMD(x) + '</li>'; }).join('') + '</' + tag + '>'
-            : '';
-          return '<li>' + inlineMD(it.t) + sub + '</li>';
-        }).join('');
+        var li = items
+          .map(function (it) {
+            var sub =
+              it.sub && it.sub.length
+                ? '<' +
+                  tag +
+                  '>' +
+                  it.sub
+                    .map(function (x) {
+                      return '<li>' + inlineMD(x) + '</li>';
+                    })
+                    .join('') +
+                  '</' +
+                  tag +
+                  '>'
+                : '';
+            return '<li>' + inlineMD(it.t) + sub + '</li>';
+          })
+          .join('');
         out.push('<' + tag + '>' + li + '</' + tag + '>');
         continue;
       }
@@ -250,7 +346,8 @@
       var buf = [line];
       i++;
       while (i < lines.length && !/^\s*$/.test(lines[i]) && !startsBlock(lines[i])) {
-        buf.push(lines[i]); i++;
+        buf.push(lines[i]);
+        i++;
       }
       out.push('<p>' + inlineMD(buf.join('\n')).replace(/\n/g, '<br>') + '</p>');
     }
@@ -267,9 +364,16 @@
       if (line.slice(0, 5) !== 'data:') return;
       var data = line.slice(5).trim();
       if (!data) return;
-      if (data === '[DONE]') { onEvent({ done: true }); return; }
+      if (data === '[DONE]') {
+        onEvent({ done: true });
+        return;
+      }
       var json;
-      try { json = JSON.parse(data); } catch (e) { return; }
+      try {
+        json = JSON.parse(data);
+      } catch (e) {
+        return;
+      }
       onEvent({ json: json });
     }
     return {
@@ -305,33 +409,43 @@
       502: '网关错误，请稍后重试',
       503: 'DeepSeek 服务繁忙，请稍后重试'
     };
-    var e = new Error(map[status] || ('请求失败（HTTP ' + status + '）'));
+    var e = new Error(map[status] || '请求失败（HTTP ' + status + '）');
     e.status = status;
     e.detail = detail || '';
     return e;
   }
 
   function readErrorBody(res) {
-    return res.text().then(function (t) {
-      if (!t) return '';
-      try {
-        var j = JSON.parse(t);
-        if (j && j.error) return j.error.message || j.error.code || t;
-      } catch (e) { /* not json */ }
-      return t;
-    }).catch(function () { return ''; });
+    return res
+      .text()
+      .then(function (t) {
+        if (!t) return '';
+        try {
+          var j = JSON.parse(t);
+          if (j && j.error) return j.error.message || j.error.code || t;
+        } catch (e) {
+          /* not json */
+        }
+        return t;
+      })
+      .catch(function () {
+        return '';
+      });
   }
 
   function streamChat(o) {
     var body = {
       model: o.model,
-      messages: o.messages.map(function (m) { return { role: m.role, content: toApiContent(m) }; }),
+      messages: o.messages.map(function (m) {
+        return { role: m.role, content: toApiContent(m) };
+      }),
       stream: true,
       stream_options: { include_usage: true }
     };
     if (o.thinking === false) {
       body.thinking = { type: 'disabled' };
-      if (typeof o.temperature === 'number' && !isNaN(o.temperature)) body.temperature = o.temperature;
+      if (typeof o.temperature === 'number' && !isNaN(o.temperature))
+        body.temperature = o.temperature;
     } else {
       body.thinking = { type: 'enabled' };
       if (o.effort) body.reasoning_effort = o.effort;
@@ -344,7 +458,7 @@
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer ' + o.apiKey
+          Authorization: 'Bearer ' + o.apiKey
         },
         body: JSON.stringify(body),
         signal: o.signal
@@ -363,7 +477,10 @@
     var parser = createSSEParser(function (ev) {
       if (ev.done) return;
       var j = ev.json;
-      if (j.usage) { usage = j.usage; if (o.onUsage) o.onUsage(usage); }
+      if (j.usage) {
+        usage = j.usage;
+        if (o.onUsage) o.onUsage(usage);
+      }
       var ch = j.choices && j.choices[0];
       if (!ch) return;
       var d = ch.delta || {};
@@ -381,10 +498,17 @@
       if (!res.ok) {
         return readErrorBody(res).then(function (detail) {
           // 个别情况下服务端不接受 stream_options，退一步重试一次
-          if (res.status === 400 && body.stream_options && /stream_options|unrecognized|unknown/i.test(detail)) {
+          if (
+            res.status === 400 &&
+            body.stream_options &&
+            /stream_options|unrecognized|unknown/i.test(detail)
+          ) {
             delete body.stream_options;
             return doFetch().then(function (res2) {
-              if (!res2.ok) return readErrorBody(res2).then(function (d2) { throw apiError(res2.status, d2); });
+              if (!res2.ok)
+                return readErrorBody(res2).then(function (d2) {
+                  throw apiError(res2.status, d2);
+                });
               return consume(res2);
             });
           }
@@ -447,13 +571,18 @@
     var L = MEM_LEVELS[level] || MEM_LEVELS.normal;
     var lines = [];
     msgs.forEach(function (m) {
-      var c = String(m.content || '').replace(/\s+/g, ' ').trim();
+      var c = String(m.content || '')
+        .replace(/\s+/g, ' ')
+        .trim();
       if (!c) return;
       if (c.length > 1200) c = c.slice(0, 1200) + '…';
       lines.push((m.role === 'user' ? '用户：' : '助手：') + c);
     });
 
-    var head = '现在是 ' + nowLine() + '。整理往事时请据此把「昨天」「上周」换算成具体日期。\n\n' +
+    var head =
+      '现在是 ' +
+      nowLine() +
+      '。整理往事时请据此把「昨天」「上周」换算成具体日期。\n\n' +
       '你是长期记忆整理助手。请把下面的对话记录整理成一份中文的「长期记忆档案」，' +
       '供以后继续陪伴聊天时使用。\n\n' +
       '总原则：\n' +
@@ -464,24 +593,31 @@
       '5. 已有记忆里的内容，只要这次对话没有推翻，就必须保留，不能因为没提到就删掉。\n' +
       '6. 不要出现「这是 AI 和用户」「之前的助手」「新的对话窗口」这类描述——这段关系是连续的，没有断过。\n\n' +
       '严格按下面四段输出，每段用【】小标题，不要加任何其他内容：\n\n' +
-
       '【用户信息】\n' +
       '关于用户本人的稳定事实，尽量写全、分条列出：称呼或昵称、年龄、职业与具体工作、所在地、' +
       '家庭成员、宠物、健康与作息、性格、喜好与厌恶、雷区、长期目标。每条一句话，没有提到的不要编。\n\n' +
-
       '【重要往事】\n' +
       '值得长期记住的事：约定、承诺、人生转折、重要情绪时刻、反复提起的人或事。' +
-      '最多 ' + L.past + ' 条，每条不超过 ' + L.pastLen + ' 字，按时间先后排列。\n\n' +
-
+      '最多 ' +
+      L.past +
+      ' 条，每条不超过 ' +
+      L.pastLen +
+      ' 字，按时间先后排列。\n\n' +
       '【最近发生的事】\n' +
       '最近这段时间发生的事、情绪状态、正在进行的计划。' +
-      '最多 ' + L.recent + ' 条，每条不超过 ' + L.recentLen + ' 字，带日期或「昨天/上周」这类相对时间，新的信息覆盖旧的。\n\n' +
-
+      '最多 ' +
+      L.recent +
+      ' 条，每条不超过 ' +
+      L.recentLen +
+      ' 字，带日期或「昨天/上周」这类相对时间，新的信息覆盖旧的。\n\n' +
       '【相处方式】\n' +
       '用户希望被怎么对待：称呼习惯、说话风格偏好、不喜欢的话题、需要安慰时的反应。没有明确表达就写「暂无」。\n';
 
     if (prev) {
-      head += '\n===== 已有长期记忆（在此基础上合并更新，不要丢失其中仍然有效的内容）=====\n' + prev + '\n';
+      head +=
+        '\n===== 已有长期记忆（在此基础上合并更新，不要丢失其中仍然有效的内容）=====\n' +
+        prev +
+        '\n';
     }
     return head + '\n===== 需要整理的对话记录 =====\n' + lines.join('\n');
   }
@@ -497,7 +633,10 @@
     }
     var s = state.settings;
     if (!(s.apiKey || '').trim()) {
-      if (opts.manual) { openSettings(); toast('先填入 API Key'); }
+      if (opts.manual) {
+        openSettings();
+        toast('先填入 API Key');
+      }
       return Promise.resolve(false);
     }
 
@@ -515,28 +654,36 @@
     return streamChat({
       apiKey: s.apiKey.trim(),
       model: 'deepseek-flash',
-      messages: [{ role: 'user', content: buildCompactPrompt(conv.memory && conv.memory.text, old, s.memLevel) }],
+      messages: [
+        {
+          role: 'user',
+          content: buildCompactPrompt(conv.memory && conv.memory.text, old, s.memLevel)
+        }
+      ],
       thinking: false,
       temperature: 0.3
-    }).then(function (r) {
-      var text = String((r && r.content) || '').trim();
-      if (!text) throw new Error('模型没有返回内容');
-      conv.memory = { text: text, at: Date.now() };
-      conv.cutoff = recent[0] && recent[0].ts ? recent[0].ts : Date.now();
-      conv.ctx = null;
-      conv.trimmed = 0;
-      toast('长期记忆已更新');
-      return true;
-    }).catch(function (e) {
-      toast('记忆整理失败：' + ((e && e.message) || '未知错误'));
-      return false;
-    }).then(function (ok) {
-      conv.compacting = false;
-      renderChat();
-      updateBar();
-      flushSave();
-      return ok;
-    });
+    })
+      .then(function (r) {
+        var text = String((r && r.content) || '').trim();
+        if (!text) throw new Error('模型没有返回内容');
+        conv.memory = { text: text, at: Date.now() };
+        conv.cutoff = recent[0] && recent[0].ts ? recent[0].ts : Date.now();
+        conv.ctx = null;
+        conv.trimmed = 0;
+        toast('长期记忆已更新');
+        return true;
+      })
+      .catch(function (e) {
+        toast('记忆整理失败：' + ((e && e.message) || '未知错误'));
+        return false;
+      })
+      .then(function (ok) {
+        conv.compacting = false;
+        renderChat();
+        updateBar();
+        flushSave();
+        return ok;
+      });
   }
 
   function countableMessages(conv) {
@@ -559,11 +706,18 @@
       if (m.error || m.streaming) continue;
       var hasImg = m.images && m.images.length;
       if (!m.content && !hasImg) continue;
-      raw.push({ role: m.role, content: m.content || '', images: hasImg ? m.images : null, ts: m.ts });
+      raw.push({
+        role: m.role,
+        content: m.content || '',
+        images: hasImg ? m.images : null,
+        ts: m.ts
+      });
     }
     var all = raw;
     if (conv.cutoff) {
-      var after = raw.filter(function (x) { return !x.ts || x.ts >= conv.cutoff; });
+      var after = raw.filter(function (x) {
+        return !x.ts || x.ts >= conv.cutoff;
+      });
       if (after.length) all = after;
     }
     if (keepTurns > 0) {
@@ -576,22 +730,28 @@
     var mem = conv.memory && conv.memory.text ? String(conv.memory.text).trim() : '';
     var sysParts = [];
     // 每次请求现算，保证时间永远是最新的
-    sysParts.push('【当前时间】' + nowLine() +
-      '\n说到「今天/昨天/明天」时以这个时间为准，不要凭训练数据猜测。');
+    sysParts.push(
+      '【当前时间】' + nowLine() + '\n说到「今天/昨天/明天」时以这个时间为准，不要凭训练数据猜测。'
+    );
     if (sys) sysParts.push(sys);
     if (mem) {
       sysParts.push(
         '【你和这位用户的过往 · 这是你自己的记忆】\n' +
-        '下面这些，是你和这位用户之间真实发生过的事，是你亲身经历的，不是别人转述的资料。\n' +
-        '你一直在和同一个人聊天。中间只是因为上下文变长做过一次整理，' +
-        '你、对方、你们之间的关系都没有变，接着之前的样子继续就行。\n' +
-        '因此：不要说自己刚认识对方，不要说「根据记忆」「之前的对话」「上一个窗口」这类话，' +
-        '也不要把它当成某份第三人称的档案来转述。直接像平时那样聊。\n\n' + mem
+          '下面这些，是你和这位用户之间真实发生过的事，是你亲身经历的，不是别人转述的资料。\n' +
+          '你一直在和同一个人聊天。中间只是因为上下文变长做过一次整理，' +
+          '你、对方、你们之间的关系都没有变，接着之前的样子继续就行。\n' +
+          '因此：不要说自己刚认识对方，不要说「根据记忆」「之前的对话」「上一个窗口」这类话，' +
+          '也不要把它当成某份第三人称的档案来转述。直接像平时那样聊。\n\n' +
+          mem
       );
     }
     var head = sysParts.length ? [{ role: 'system', content: sysParts.join('\n\n') }] : [];
     var guard = 0;
-    while (estTokens(head.concat(all)) > (budget || CONTEXT_BUDGET) && all.length > 2 && guard++ < 1000) {
+    while (
+      estTokens(head.concat(all)) > (budget || CONTEXT_BUDGET) &&
+      all.length > 2 &&
+      guard++ < 1000
+    ) {
       all.shift();
       while (all.length && all[0].role !== 'user') all.shift();
     }
@@ -608,11 +768,21 @@
     '5. 如果实在没有可用的记忆，就问一件具体的、你好奇的小事。';
 
   var PURE = {
-    uid: uid, esc: esc, estTokens: estTokens, isContextError: isContextError,
-    renderMD: renderMD, createSSEParser: createSSEParser, streamChat: streamChat,
-    fmtTokens: fmtTokens, toApiContent: toApiContent, buildCompactPrompt: buildCompactPrompt,
-    stripForSpeech: stripForSpeech, nowLine: nowLine, normalizeKeepTurns: normalizeKeepTurns,
-    buildApiMessages: buildApiMessages, apiError: apiError
+    uid: uid,
+    esc: esc,
+    estTokens: estTokens,
+    isContextError: isContextError,
+    renderMD: renderMD,
+    createSSEParser: createSSEParser,
+    streamChat: streamChat,
+    fmtTokens: fmtTokens,
+    toApiContent: toApiContent,
+    buildCompactPrompt: buildCompactPrompt,
+    stripForSpeech: stripForSpeech,
+    nowLine: nowLine,
+    normalizeKeepTurns: normalizeKeepTurns,
+    buildApiMessages: buildApiMessages,
+    apiError: apiError
   };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = PURE;
@@ -626,30 +796,45 @@
     send: '<svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg>',
     stop: '<svg viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>',
     copy: '<svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/></svg>',
-    regen: '<svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 15.5-6.2L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15.5 6.2L3 16"/><path d="M3 21v-5h5"/></svg>',
+    regen:
+      '<svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 15.5-6.2L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15.5 6.2L3 16"/><path d="M3 21v-5h5"/></svg>',
     trash: '<svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13"/></svg>',
     gear: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1A1.7 1.7 0 0 0 9 19.4a1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>',
     menu: '<svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg>',
     plus: '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
-    bubble: '<svg viewBox="0 0 24 24"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 8.9 8.9 0 0 1-3.9-.9L3 21l1.9-4.9A8.4 8.4 0 1 1 21 11.5z"/><path d="M8.5 12h.01M12 12h.01M15.5 12h.01"/></svg>',
+    bubble:
+      '<svg viewBox="0 0 24 24"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 8.9 8.9 0 0 1-3.9-.9L3 21l1.9-4.9A8.4 8.4 0 1 1 21 11.5z"/><path d="M8.5 12h.01M12 12h.01M15.5 12h.01"/></svg>',
     chat: '<svg viewBox="0 0 24 24"><path d="M20 12a7 7 0 0 1-7 7 7.4 7.4 0 0 1-3.2-.7L5 20l1.4-4A7 7 0 1 1 20 12z"/></svg>',
     code: '<svg viewBox="0 0 24 24"><path d="M9 8l-4 4 4 4M15 8l4 4-4 4"/></svg>',
     pen: '<svg viewBox="0 0 24 24"><path d="M17 3l4 4L8 20l-5 1 1-5z"/></svg>',
-    speak: '<svg viewBox="0 0 24 24"><path d="M11 5L6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg>',
+    speak:
+      '<svg viewBox="0 0 24 24"><path d="M11 5L6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg>',
     map: '<svg viewBox="0 0 24 24"><path d="M9 4l6 2 6-2v14l-6 2-6-2-6 2V6z"/><path d="M9 4v14M15 6v14"/></svg>'
   };
 
-  var $ = function (s, r) { return (r || document).querySelector(s); };
+  var $ = function (s, r) {
+    return (r || document).querySelector(s);
+  };
   var chatEl = $('#chat');
   var inputEl = $('#input');
   var sendEl = $('#send');
 
   var state = { settings: {}, convs: [], currentId: null };
-  var ui = { streaming: false, abort: null, msg: null, idx: -1, pending: [],
-    dirty: false, backupAt: 0, backupErr: '', backupLocs: 0, balanceAt: 0,
-    proactiveBusy: false, renderLimit: 60 };
+  var ui = {
+    streaming: false,
+    abort: null,
+    msg: null,
+    idx: -1,
+    pending: [],
+    dirty: false,
+    backupAt: 0,
+    backupErr: '',
+    backupLocs: 0,
+    balanceAt: 0,
+    proactiveBusy: false,
+    renderLimit: 60
+  };
   var backupTimer = 0;
-  var probeTimer = 0;
   var MAX_IMAGES = 4;
   var MAX_SIDE = 1280;
   var atBottom = true;
@@ -662,9 +847,18 @@
 
   function defaultSettings() {
     return {
-      apiKey: '', model: 'deepseek-flash', system: '', temperature: 1.0,
-      keepTurns: 60, theme: 'auto', thinking: true, effort: 'high', memLevel: 'rich',
-      ttsAuto: 'off', ttsVoice: 'system', ttsRate: 1
+      apiKey: '',
+      model: 'deepseek-flash',
+      system: '',
+      temperature: 1.0,
+      keepTurns: 60,
+      theme: 'auto',
+      thinking: true,
+      effort: 'high',
+      memLevel: 'rich',
+      ttsAuto: 'off',
+      ttsVoice: 'system',
+      ttsRate: 1
     };
   }
   function freshState() {
@@ -680,7 +874,9 @@
           try {
             var sh = JSON.parse(shadow);
             if (sh && Array.isArray(sh.convs) && sh.convs.length) {
-              setTimeout(function () { toast('主存档损坏，已从本地留底恢复'); }, 800);
+              setTimeout(function () {
+                toast('主存档损坏，已从本地留底恢复');
+              }, 800);
               var st0 = freshState();
               st0.settings = Object.assign(defaultSettings(), sh.settings || {});
               st0.convs = sh.convs;
@@ -692,15 +888,26 @@
         return freshState();
       }
       var s;
-      try { s = JSON.parse(raw); } catch (e) { s = null; }
-      if (!s) { localStorage.removeItem(STORE_KEY); return loadState(); }
+      try {
+        s = JSON.parse(raw);
+      } catch (e) {
+        s = null;
+      }
+      if (!s) {
+        localStorage.removeItem(STORE_KEY);
+        return loadState();
+      }
       var st = freshState();
       st.settings = Object.assign(defaultSettings(), s.settings || {});
       st.convs = (Array.isArray(s.convs) ? s.convs : []).filter(function (c) {
         return c && c.id && Array.isArray(c.messages);
       });
       st.settings.model = LEGACY_MODEL[st.settings.model] || st.settings.model;
-      if (!MODELS.some(function (m) { return m.id === st.settings.model; })) {
+      if (
+        !MODELS.some(function (m) {
+          return m.id === st.settings.model;
+        })
+      ) {
         st.settings.model = 'deepseek-flash';
       }
       st.settings.keepTurns = normalizeKeepTurns(st.settings.keepTurns);
@@ -708,10 +915,15 @@
       if (!st.settings.effort) st.settings.effort = 'high';
       if (!MEM_LEVELS[st.settings.memLevel]) st.settings.memLevel = 'rich';
       if (st.settings.ttsAuto !== 'on') st.settings.ttsAuto = 'off';
-      if (['system', 'stella', 'tide'].indexOf(st.settings.ttsVoice) === -1) st.settings.ttsVoice = 'system';
+      if (['system', 'stella', 'tide'].indexOf(st.settings.ttsVoice) === -1)
+        st.settings.ttsVoice = 'system';
       if (!isFinite(Number(st.settings.ttsRate))) st.settings.ttsRate = 1;
       st.currentId = s.currentId || null;
-      if (!st.convs.some(function (c) { return c.id === st.currentId; })) {
+      if (
+        !st.convs.some(function (c) {
+          return c.id === st.currentId;
+        })
+      ) {
         st.currentId = st.convs.length ? st.convs[0].id : null;
       }
       return st;
@@ -731,9 +943,14 @@
       });
     });
     if (!arr.length) return false;
-    arr.sort(function (a, b) { return (a.ts || 0) - (b.ts || 0); });
+    arr.sort(function (a, b) {
+      return (a.ts || 0) - (b.ts || 0);
+    });
     var n = 0;
-    for (var i = 0; i < arr.length && n < limit; i++) { delete arr[i].images; n++; }
+    for (var i = 0; i < arr.length && n < limit; i++) {
+      delete arr[i].images;
+      n++;
+    }
     return n > 0;
   }
 
@@ -742,7 +959,9 @@
     try {
       var next = JSON.stringify(state);
       localStorage.setItem(STORE_KEY, next);
-      try { localStorage.setItem(PREV_KEY, next); } catch (e3) {}
+      try {
+        localStorage.setItem(PREV_KEY, next);
+      } catch (e3) {}
       ui.dirty = true;
       scheduleBackup();
     } catch (e) {
@@ -751,7 +970,9 @@
           localStorage.setItem(STORE_KEY, JSON.stringify(state));
           toast('本地空间不足，已清理最早的图片');
           return;
-        } catch (e2) { /* 还是不够 */ }
+        } catch (e2) {
+          /* 还是不够 */
+        }
       }
       toast('保存失败：本地存储空间已满');
     }
@@ -790,7 +1011,8 @@
     for (var i = 0; i < conv.messages.length; i++) {
       if (conv.messages[i].role === 'user') {
         var raw = (conv.messages[i].content || '').replace(/\s+/g, ' ').trim();
-        if (!raw) return conv.messages[i].images && conv.messages[i].images.length ? '图片' : '新对话';
+        if (!raw)
+          return conv.messages[i].images && conv.messages[i].images.length ? '图片' : '新对话';
         return raw.length > 22 ? raw.slice(0, 22) + '…' : raw;
       }
     }
@@ -802,8 +1024,10 @@
     if (d < 60e3) return '刚刚';
     if (d < 3600e3) return Math.floor(d / 60e3) + ' 分钟前';
     if (d < 86400e3) return Math.floor(d / 3600e3) + ' 小时前';
-    var dt = new Date(ts), now = new Date();
-    if (dt.getFullYear() === now.getFullYear()) return (dt.getMonth() + 1) + '月' + dt.getDate() + '日';
+    var dt = new Date(ts),
+      now = new Date();
+    if (dt.getFullYear() === now.getFullYear())
+      return dt.getMonth() + 1 + '月' + dt.getDate() + '日';
     return dt.getFullYear() + '/' + (dt.getMonth() + 1) + '/' + dt.getDate();
   }
   function scrollToBottom(force) {
@@ -833,18 +1057,26 @@
     el.textContent = msg;
     el.classList.add('on');
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(function () { el.classList.remove('on'); }, 2000);
+    toastTimer = setTimeout(function () {
+      el.classList.remove('on');
+    }, 2000);
   }
 
   function compressImage(file) {
     return new Promise(function (resolve) {
-      if (!/^image\//.test(file.type) &&
-          !/\.(jpe?g|png|gif|webp|heic|heif)$/i.test(file.name)) { resolve(null); return; }
+      if (!/^image\//.test(file.type) && !/\.(jpe?g|png|gif|webp|heic|heif)$/i.test(file.name)) {
+        resolve(null);
+        return;
+      }
       var fr = new FileReader();
-      fr.onerror = function () { resolve(null); };
+      fr.onerror = function () {
+        resolve(null);
+      };
       fr.onload = function () {
         var img = new Image();
-        img.onerror = function () { resolve(null); };
+        img.onerror = function () {
+          resolve(null);
+        };
         img.onload = function () {
           try {
             var w = img.naturalWidth || img.width;
@@ -858,7 +1090,9 @@
             ctx.fillRect(0, 0, cv.width, cv.height);
             ctx.drawImage(img, 0, 0, cv.width, cv.height);
             resolve(cv.toDataURL('image/jpeg', 0.82));
-          } catch (e) { resolve(null); }
+          } catch (e) {
+            resolve(null);
+          }
         };
         img.src = fr.result;
       };
@@ -877,10 +1111,18 @@
       return;
     }
     box.hidden = false;
-    box.innerHTML = ui.pending.map(function (u, i) {
-      return '<div class="thumb"><img src="' + u + '" alt="">' +
-        '<button data-rm="' + i + '" aria-label="移除">×</button></div>';
-    }).join('');
+    box.innerHTML = ui.pending
+      .map(function (u, i) {
+        return (
+          '<div class="thumb"><img src="' +
+          u +
+          '" alt="">' +
+          '<button data-rm="' +
+          i +
+          '" aria-label="移除">×</button></div>'
+        );
+      })
+      .join('');
     if (attach) attach.classList.add('has');
   }
 
@@ -888,11 +1130,19 @@
     var list = Array.prototype.slice.call(files || []);
     if (!list.length) return;
     var room = MAX_IMAGES - ui.pending.length;
-    if (room <= 0) { toast('一次最多 ' + MAX_IMAGES + ' 张图'); return; }
+    if (room <= 0) {
+      toast('一次最多 ' + MAX_IMAGES + ' 张图');
+      return;
+    }
     list = list.slice(0, room);
     Promise.all(list.map(compressImage)).then(function (urls) {
       var ok = 0;
-      urls.forEach(function (u) { if (u) { ui.pending.push(u); ok++; } });
+      urls.forEach(function (u) {
+        if (u) {
+          ui.pending.push(u);
+          ok++;
+        }
+      });
       if (!ok) toast('这些图片读不出来，换 JPG/PNG 试试');
       else if (list.length < files.length) toast('最多 ' + MAX_IMAGES + ' 张，多余的已忽略');
       renderPreview();
@@ -902,7 +1152,12 @@
 
   function copyText(text) {
     if (navigator.clipboard && window.isSecureContext) {
-      return navigator.clipboard.writeText(text).then(function () { return true; }).catch(fallback);
+      return navigator.clipboard
+        .writeText(text)
+        .then(function () {
+          return true;
+        })
+        .catch(fallback);
     }
     return Promise.resolve(fallback());
     function fallback() {
@@ -917,7 +1172,9 @@
         var ok = document.execCommand('copy');
         document.body.removeChild(ta);
         return ok;
-      } catch (e) { return false; }
+      } catch (e) {
+        return false;
+      }
     }
   }
 
@@ -936,9 +1193,15 @@
     tts.active = false;
     tts.idx = -1;
     tts.spoken = 0;
-    if (window.speechSynthesis) { try { speechSynthesis.cancel(); } catch (e) {} }
+    if (window.speechSynthesis) {
+      try {
+        speechSynthesis.cancel();
+      } catch (e) {}
+    }
     if (tts.audio) {
-      try { tts.audio.pause(); } catch (e) {}
+      try {
+        tts.audio.pause();
+      } catch (e) {}
       tts.audio = null;
     }
     if (was) markSpeaking(-1);
@@ -947,7 +1210,9 @@
   function pickVoice() {
     if (!window.speechSynthesis) return null;
     var vs = speechSynthesis.getVoices() || [];
-    var zh = vs.filter(function (v) { return /^zh/i.test(v.lang); });
+    var zh = vs.filter(function (v) {
+      return /^zh/i.test(v.lang);
+    });
     if (!zh.length) return null;
     var prefer = ['Ting-Ting', 'Tingting', '婷婷', 'Mei-Jia', 'Sin-ji', 'Yu-shu', 'Li-mu'];
     for (var i = 0; i < prefer.length; i++) {
@@ -962,7 +1227,12 @@
     if (!window.speechSynthesis || !text.trim()) return;
     var u = new SpeechSynthesisUtterance(text);
     var v = pickVoice();
-    if (v) { u.voice = v; u.lang = v.lang; } else { u.lang = 'zh-CN'; }
+    if (v) {
+      u.voice = v;
+      u.lang = v.lang;
+    } else {
+      u.lang = 'zh-CN';
+    }
     u.rate = Number(state.settings.ttsRate) || 1;
     u.onend = function () {
       if (!speechSynthesis.pending && !speechSynthesis.speaking) {
@@ -974,7 +1244,10 @@
   }
 
   function speakSystemText(text) {
-    if (!window.speechSynthesis) { toast('这个浏览器不支持系统语音'); return; }
+    if (!window.speechSynthesis) {
+      toast('这个浏览器不支持系统语音');
+      return;
+    }
     var parts = text.replace(/([。！？!?；;\n])/g, '$1|').split('|');
     var any = false;
     for (var i = 0; i < parts.length; i++) {
@@ -988,29 +1261,45 @@
 
   function deepseekSay(text, voiceId) {
     var key = (state.settings.apiKey || '').trim();
-    if (!key) { toast('先填入 API Key'); stopSpeech(); return; }
+    if (!key) {
+      toast('先填入 API Key');
+      stopSpeech();
+      return;
+    }
     var clip = text.slice(0, 3000);
     fetch('https://api.deepseek.com/v1/tools/tts', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key },
       body: JSON.stringify({ text: clip, voice_id: voiceId, format: 'wav', filter_markdown: true })
-    }).then(function (res) {
-      if (!res.ok) throw new Error('HTTP ' + res.status);
-      return res.blob();
-    }).then(function (blob) {
-      if (!tts.active || tts.engine !== 'deepseek') return;
-      var audio = new Audio(URL.createObjectURL(blob));
-      tts.audio = audio;
-      audio.onended = function () { tts.active = false; markSpeaking(-1); };
-      audio.onerror = function () { toast('播放失败'); stopSpeech(); };
-      var pr = audio.play();
-      if (pr && pr.catch) {
-        pr.catch(function () { toast('浏览器拦住了播放，点一下喇叭重试'); stopSpeech(); });
-      }
-    }).catch(function (e) {
-      toast('语音合成失败：' + (e && e.message ? e.message : '未知错误'));
-      stopSpeech();
-    });
+    })
+      .then(function (res) {
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        return res.blob();
+      })
+      .then(function (blob) {
+        if (!tts.active || tts.engine !== 'deepseek') return;
+        var audio = new Audio(URL.createObjectURL(blob));
+        tts.audio = audio;
+        audio.onended = function () {
+          tts.active = false;
+          markSpeaking(-1);
+        };
+        audio.onerror = function () {
+          toast('播放失败');
+          stopSpeech();
+        };
+        var pr = audio.play();
+        if (pr && pr.catch) {
+          pr.catch(function () {
+            toast('浏览器拦住了播放，点一下喇叭重试');
+            stopSpeech();
+          });
+        }
+      })
+      .catch(function (e) {
+        toast('语音合成失败：' + (e && e.message ? e.message : '未知错误'));
+        stopSpeech();
+      });
   }
 
   function beginRead(idx) {
@@ -1042,7 +1331,10 @@
     if (!rest) return;
     var cut = -1;
     for (var i = rest.length - 1; i >= 0; i--) {
-      if ('。！？!?；;\n'.indexOf(rest.charAt(i)) !== -1) { cut = i; break; }
+      if ('。！？!?；;\n'.indexOf(rest.charAt(i)) !== -1) {
+        cut = i;
+        break;
+      }
     }
     if (cut < 0) return;
     var chunk = stripForSpeech(rest.slice(0, cut + 1));
@@ -1081,14 +1373,20 @@
     clearTimeout(voice.sendTimer);
     setMicState(false);
     if (voice.rec) {
-      try { voice.rec.onend = null; voice.rec.stop(); } catch (e) {}
+      try {
+        voice.rec.onend = null;
+        voice.rec.stop();
+      } catch (e) {}
       voice.rec = null;
     }
   }
 
   function startVoice() {
     var why = voiceBlockReason();
-    if (why) { toast(why); return false; }
+    if (why) {
+      toast(why);
+      return false;
+    }
     var SR = SpeechRec();
     var rec = new SR();
     rec.lang = 'zh-CN';
@@ -1143,7 +1441,9 @@
       setTimeout(function () {
         voice.restarting = false;
         if (!voice.on || !voice.rec) return;
-        try { voice.rec.start(); } catch (err) {}
+        try {
+          voice.rec.start();
+        } catch (err) {}
       }, 300);
     };
 
@@ -1151,12 +1451,21 @@
     voice.on = true;
     voice.finalText = '';
     setMicState(true);
-    try { rec.start(); } catch (e) { toast('启动语音识别失败'); stopVoice(); return false; }
+    try {
+      rec.start();
+    } catch (e) {
+      toast('启动语音识别失败');
+      stopVoice();
+      return false;
+    }
     return true;
   }
 
   function toggleVoice() {
-    if (voice.on) { stopVoice(); return; }
+    if (voice.on) {
+      stopVoice();
+      return;
+    }
     var ok = startVoice();
     if (ok) {
       if (state.settings.ttsAuto !== 'on') {
@@ -1191,10 +1500,17 @@
 
   /* ---------- 实验：主动搭话 ---------- */
   function proactiveOpen() {
-    if (ui.streaming) { toast('等这轮回复结束'); return; }
+    if (ui.streaming) {
+      toast('等这轮回复结束');
+      return;
+    }
     if (ui.proactiveBusy) return;
     var s = state.settings;
-    if (!(s.apiKey || '').trim()) { openSettings(); toast('先填入 API Key'); return; }
+    if (!(s.apiKey || '').trim()) {
+      openSettings();
+      toast('先填入 API Key');
+      return;
+    }
     var conv = ensureConv();
 
     var base = buildApiMessages(conv, s, s.keepTurns, CONTEXT_BUDGET);
@@ -1209,24 +1525,29 @@
       model: s.model,
       messages: msgs,
       thinking: false
-    }).then(function (r) {
-      var text = String((r && r.content) || '').trim().replace(/^["'“「]+|["'”」]+$/g, '');
-      if (!text) throw new Error('没有生成内容');
-      if (text.length > 80) text = text.slice(0, 80);
-      conv.messages.push({ role: 'assistant', content: text, ts: Date.now(), proactive: true });
-      if (!conv.title || conv.title === '新对话') conv.title = '它先开口';
-      conv.updatedAt = Date.now();
-      atBottom = true;
-      renderChat();
-      scrollToBottom(true);
-      renderDrawer();
-      flushSave();
-      if (state.settings.ttsAuto === 'on') startSpeak(conv.messages.length - 1);
-    }).catch(function (e) {
-      toast('搭话失败：' + ((e && e.message) || '未知错误'));
-    }).then(function () {
-      ui.proactiveBusy = false;
-    });
+    })
+      .then(function (r) {
+        var text = String((r && r.content) || '')
+          .trim()
+          .replace(/^["'“「]+|["'”」]+$/g, '');
+        if (!text) throw new Error('没有生成内容');
+        if (text.length > 80) text = text.slice(0, 80);
+        conv.messages.push({ role: 'assistant', content: text, ts: Date.now(), proactive: true });
+        if (!conv.title || conv.title === '新对话') conv.title = '它先开口';
+        conv.updatedAt = Date.now();
+        atBottom = true;
+        renderChat();
+        scrollToBottom(true);
+        renderDrawer();
+        flushSave();
+        if (state.settings.ttsAuto === 'on') startSpeak(conv.messages.length - 1);
+      })
+      .catch(function (e) {
+        toast('搭话失败：' + ((e && e.message) || '未知错误'));
+      })
+      .then(function () {
+        ui.proactiveBusy = false;
+      });
   }
 
   /* ---------- rendering ---------- */
@@ -1249,41 +1570,75 @@
 
   function emptyHTML() {
     if (ui.foundBackup) {
-      return '<div class="empty">' +
+      return (
+        '<div class="empty">' +
         '<img class="logo" src="icon-180.png" alt="" width="74" height="74">' +
         '<div class="greet">检测到备份</div>' +
         '<h1>这里还没有对话</h1>' +
-        '<p>电脑上存着 <b>' + ui.foundBackup + '</b> 个有内容的会话，可能是你换了个地址打开。' +
+        '<p>电脑上存着 <b>' +
+        ui.foundBackup +
+        '</b> 个有内容的会话，可能是你换了个地址打开。' +
         '点下面就能取回来。</p>' +
-        '<button class="cta" data-act="recover">恢复 ' + ui.foundBackup + ' 个会话</button>' +
+        '<button class="cta" data-act="recover">恢复 ' +
+        ui.foundBackup +
+        ' 个会话</button>' +
         '<p class="fine">数据没丢，只是换个地址等于换了个空保险箱。</p>' +
-        '</div>';
+        '</div>'
+      );
     }
     var hasKey = !!(state.settings.apiKey || '').trim();
     if (!hasKey) {
-      return '<div class="empty">' +
+      return (
+        '<div class="empty">' +
         '<img class="logo" src="icon-180.png" alt="" width="74" height="74">' +
-        '<div class="greet">' + esc(greeting()) + ' · ' + esc(shortDate()) + '</div>' +
+        '<div class="greet">' +
+        esc(greeting()) +
+        ' · ' +
+        esc(shortDate()) +
+        '</div>' +
         '<h1>填入 API Key 开始</h1>' +
         '<p>去 DeepSeek 开放平台创建一个 Key，粘贴进来即可。它只保存在这台手机本地。</p>' +
         '<button class="cta" data-act="settings">填入 API Key</button>' +
         '<p class="fine">还没有账号？<a href="https://platform.deepseek.com/api_keys" target="_blank" rel="noopener">去开放平台创建 →</a></p>' +
-        '</div>';
+        '</div>'
+      );
     }
-    return '<div class="empty">' +
+    return (
+      '<div class="empty">' +
       '<img class="logo" src="icon-180.png" alt="" width="74" height="74">' +
-      '<div class="greet">' + esc(greeting()) + ' · ' + esc(shortDate()) + '</div>' +
+      '<div class="greet">' +
+      esc(greeting()) +
+      ' · ' +
+      esc(shortDate()) +
+      '</div>' +
       '<h1>今天想聊点什么？</h1>' +
       '<p>对话只存在这台手机里。直接输入，或从下面挑一个开始。</p>' +
-      '<div class="chips">' + CHIPS.map(function (c) {
-        return '<button class="chip" data-chip="' + esc(c.t) + '">' +
-          '<span class="chip-ico">' + (ICON[c.i] || ICON.chat) + '</span>' +
-          '<span>' + esc(c.t) + '</span></button>';
-      }).join('') + '</div></div>';
+      '<div class="chips">' +
+      CHIPS.map(function (c) {
+        return (
+          '<button class="chip" data-chip="' +
+          esc(c.t) +
+          '">' +
+          '<span class="chip-ico">' +
+          (ICON[c.i] || ICON.chat) +
+          '</span>' +
+          '<span>' +
+          esc(c.t) +
+          '</span></button>'
+        );
+      }).join('') +
+      '</div></div>'
+    );
   }
 
   function thinkHTML(text) {
-    return '<details class="think"><summary>思考过程 · ' + text.length + ' 字</summary><div class="th">' + esc(text) + '</div></details>';
+    return (
+      '<details class="think"><summary>思考过程 · ' +
+      text.length +
+      ' 字</summary><div class="th">' +
+      esc(text) +
+      '</div></details>'
+    );
   }
 
   function bodyHTML(m, i) {
@@ -1295,8 +1650,13 @@
     else inner = '';
     h += '<div class="md">' + inner + '</div>';
     if (m.error) {
-      h += '<div class="err"><div class="err-t">' + esc(m.error) + '</div>' +
-           '<button class="err-b" data-act="retry" data-i="' + i + '">重试</button></div>';
+      h +=
+        '<div class="err"><div class="err-t">' +
+        esc(m.error) +
+        '</div>' +
+        '<button class="err-b" data-act="retry" data-i="' +
+        i +
+        '">重试</button></div>';
     }
     if (m.stopped) h += '<div class="notice">已停止生成</div>';
     return h;
@@ -1304,14 +1664,32 @@
 
   function actionsHTML(m, i, isLast) {
     var p = [];
-    if (m.content) p.push('<button class="act" data-act="copy" data-i="' + i + '">' + ICON.copy + '复制</button>');
+    if (m.content)
+      p.push(
+        '<button class="act" data-act="copy" data-i="' + i + '">' + ICON.copy + '复制</button>'
+      );
     if (m.role === 'assistant' && m.content) {
-      p.push('<button class="act act-speak" data-act="speak" data-i="' + i + '">' + ICON.speak + '朗读</button>');
+      p.push(
+        '<button class="act act-speak" data-act="speak" data-i="' +
+          i +
+          '">' +
+          ICON.speak +
+          '朗读</button>'
+      );
     }
     if (m.role === 'assistant' && isLast && !m.streaming && !m.error) {
-      p.push('<button class="act" data-act="regen" data-i="' + i + '">' + ICON.regen + '重新生成</button>');
+      p.push(
+        '<button class="act" data-act="regen" data-i="' +
+          i +
+          '">' +
+          ICON.regen +
+          '重新生成</button>'
+      );
     }
-    if (!ui.streaming) p.push('<button class="act" data-act="del" data-i="' + i + '">' + ICON.trash + '删除</button>');
+    if (!ui.streaming)
+      p.push(
+        '<button class="act" data-act="del" data-i="' + i + '">' + ICON.trash + '删除</button>'
+      );
     return p.length ? '<div class="acts">' + p.join('') + '</div>' : '';
   }
 
@@ -1326,44 +1704,75 @@
     var last = conv.messages.length - 1;
     var head = '';
     if (conv.trimmed > 0) {
-      head = '<div class="trimnote">更早的 ' + conv.trimmed +
+      head =
+        '<div class="trimnote">更早的 ' +
+        conv.trimmed +
         ' 条消息没有发送给模型' +
-        (conv.trimmed >= 2 ? '，可在设置里选「长记忆」' : '') + '</div>';
+        (conv.trimmed >= 2 ? '，可在设置里选「长记忆」' : '') +
+        '</div>';
     }
     var cut = conv.cutoff || 0;
     var cutDone = !cut;
     // 窗口化：长对话只渲染最近 N 条，避免每次全量重建卡顿
     var start = Math.max(0, conv.messages.length - ui.renderLimit);
     if (start > 0) {
-      head = '<div class="trimnote loadmore" data-act="more">更早的 ' + start +
-        ' 条已折叠 · 点这里展开</div>' + head;
+      head =
+        '<div class="trimnote loadmore" data-act="more">更早的 ' +
+        start +
+        ' 条已折叠 · 点这里展开</div>' +
+        head;
       cutDone = true;
     }
-    var html = head + conv.messages.slice(start).map(function (m, k) {
-      var i = k + start;
-      var isLast = i === last;
-      var div = '';
-      if (!cutDone && m.ts && m.ts >= cut) {
-        cutDone = true;
-        if (i > 0) div = '<div class="memline"><b>长期记忆</b>·以上内容已压缩</div>';
-      }
-      if (m.role === 'user') {
-        var atts = (m.images || []).map(function (u) {
-          return '<img class="att" src="' + u + '" alt="">';
-        }).join('');
-        return div + '<div class="msg user" data-i="' + i + '"><div class="ub">' +
-          '<div class="bubble">' +
-            (atts ? '<div class="atts">' + atts + '</div>' : '') +
-            (m.content ? '<div class="txt">' + esc(m.content) + '</div>' : '') +
-          '</div>' +
-          actionsHTML(m, i, isLast) + '</div></div>';
-      }
-      return div + '<div class="msg ai' + (isLast ? ' last' : '') + '" data-i="' + i + '">' +
-        '<div class="head"><img class="avatar" src="avatar.jpg" alt="" width="31" height="31">' +
-        '<div class="who">DeepSeek' + (m.proactive ? '<span class="tag">主动</span>' : '') + '</div></div>' +
-        '<div class="body">' + bodyHTML(m, i) + '</div>' +
-        actionsHTML(m, i, isLast) + '</div>';
-    }).join('');
+    var html =
+      head +
+      conv.messages
+        .slice(start)
+        .map(function (m, k) {
+          var i = k + start;
+          var isLast = i === last;
+          var div = '';
+          if (!cutDone && m.ts && m.ts >= cut) {
+            cutDone = true;
+            if (i > 0) div = '<div class="memline"><b>长期记忆</b>·以上内容已压缩</div>';
+          }
+          if (m.role === 'user') {
+            var atts = (m.images || [])
+              .map(function (u) {
+                return '<img class="att" src="' + u + '" alt="">';
+              })
+              .join('');
+            return (
+              div +
+              '<div class="msg user" data-i="' +
+              i +
+              '"><div class="ub">' +
+              '<div class="bubble">' +
+              (atts ? '<div class="atts">' + atts + '</div>' : '') +
+              (m.content ? '<div class="txt">' + esc(m.content) + '</div>' : '') +
+              '</div>' +
+              actionsHTML(m, i, isLast) +
+              '</div></div>'
+            );
+          }
+          return (
+            div +
+            '<div class="msg ai' +
+            (isLast ? ' last' : '') +
+            '" data-i="' +
+            i +
+            '">' +
+            '<div class="head"><img class="avatar" src="avatar.jpg" alt="" width="31" height="31">' +
+            '<div class="who">DeepSeek' +
+            (m.proactive ? '<span class="tag">主动</span>' : '') +
+            '</div></div>' +
+            '<div class="body">' +
+            bodyHTML(m, i) +
+            '</div>' +
+            actionsHTML(m, i, isLast) +
+            '</div>'
+          );
+        })
+        .join('');
     chatEl.innerHTML = '<div class="wrap">' + html + '</div>';
     updateBar();
     updateScrollState();
@@ -1371,19 +1780,35 @@
 
   function updateBar() {
     var conv = currentConv();
-    $('#barTitle').textContent = conv ? (conv.title || '新对话') : '新对话';
-    var model = (MODELS.filter(function (m) { return m.id === state.settings.model; })[0] || MODELS[0]).name;
+    $('#barTitle').textContent = conv ? conv.title || '新对话' : '新对话';
+    var model = (
+      MODELS.filter(function (m) {
+        return m.id === state.settings.model;
+      })[0] || MODELS[0]
+    ).name;
     var hasKey = !!(state.settings.apiKey || '').trim();
     var used = conv ? convTokens(conv) : 0;
     // 进度按"程序实际会发送的上限"算，否则永远到不了满
     var pct = Math.min(100, (used / CONTEXT_BUDGET) * 100);
-    var lvl = pct >= 85 ? 'hot' : (pct >= 60 ? 'warm' : '');
+    var lvl = pct >= 85 ? 'hot' : pct >= 60 ? 'warm' : '';
 
-    var html = '<span class="dot ' + (hasKey ? 'ok' : 'bad') + '"></span>' +
-      '<span class="mname">' + esc(model) + '</span>';
+    var html =
+      '<span class="dot ' +
+      (hasKey ? 'ok' : 'bad') +
+      '"></span>' +
+      '<span class="mname">' +
+      esc(model) +
+      '</span>';
     if (used > 0) {
-      html += '<span class="csep"></span>' +
-        '<span class="ctx ' + lvl + '">' + fmtTokens(used) + '/' + fmtTokens(CTX_LIMIT) + '</span>';
+      html +=
+        '<span class="csep"></span>' +
+        '<span class="ctx ' +
+        lvl +
+        '">' +
+        fmtTokens(used) +
+        '/' +
+        fmtTokens(CTX_LIMIT) +
+        '</span>';
     }
     $('#barSub').innerHTML = html;
 
@@ -1397,16 +1822,34 @@
   function renderDrawer() {
     var list = $('#convList');
     if (!state.convs.length) {
-      list.innerHTML = '<div style="padding:26px 10px;text-align:center;color:var(--dim2);font-size:13px">还没有会话</div>';
+      list.innerHTML =
+        '<div style="padding:26px 10px;text-align:center;color:var(--dim2);font-size:13px">还没有会话</div>';
       return;
     }
-    list.innerHTML = state.convs.map(function (c) {
-      var n = c.messages.length;
-      return '<div class="conv' + (c.id === state.currentId ? ' on' : '') + '" data-id="' + c.id + '">' +
-        '<div class="meta"><div class="t">' + esc(c.title || '新对话') + '</div>' +
-        '<div class="d">' + fmtWhen(c.updatedAt || c.createdAt) + (n ? ' · ' + n + ' 条' : ' · 空') + '</div></div>' +
-        '<button class="conv-del" data-del="' + c.id + '" aria-label="删除会话">' + ICON.trash + '</button></div>';
-    }).join('');
+    list.innerHTML = state.convs
+      .map(function (c) {
+        var n = c.messages.length;
+        return (
+          '<div class="conv' +
+          (c.id === state.currentId ? ' on' : '') +
+          '" data-id="' +
+          c.id +
+          '">' +
+          '<div class="meta"><div class="t">' +
+          esc(c.title || '新对话') +
+          '</div>' +
+          '<div class="d">' +
+          fmtWhen(c.updatedAt || c.createdAt) +
+          (n ? ' · ' + n + ' 条' : ' · 空') +
+          '</div></div>' +
+          '<button class="conv-del" data-del="' +
+          c.id +
+          '" aria-label="删除会话">' +
+          ICON.trash +
+          '</button></div>'
+        );
+      })
+      .join('');
   }
 
   /* ---------- streaming paint ---------- */
@@ -1462,39 +1905,59 @@
     stopSpeech();
     clearPending();
     var cur = currentConv();
-    if (cur && cur.messages.length === 0) { closeDrawer(); return cur; }
-    var c = { id: uid(), title: '新对话', createdAt: Date.now(), updatedAt: Date.now(), messages: [] };
+    if (cur && cur.messages.length === 0) {
+      closeDrawer();
+      return cur;
+    }
+    var c = {
+      id: uid(),
+      title: '新对话',
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      messages: []
+    };
     state.convs.unshift(c);
     state.currentId = c.id;
     save();
-    renderChat(); renderDrawer();
+    renderChat();
+    renderDrawer();
     closeDrawer();
-    setTimeout(function () { inputEl.focus(); }, 60);
+    setTimeout(function () {
+      inputEl.focus();
+    }, 60);
     return c;
   }
 
   function switchConv(id) {
-    if (ui.streaming) { toast('请先停止当前生成'); return; }
+    if (ui.streaming) {
+      toast('请先停止当前生成');
+      return;
+    }
     ui.renderLimit = 60;
     stopSpeech();
     clearPending();
     state.currentId = id;
     save();
-    renderChat(); renderDrawer();
+    renderChat();
+    renderDrawer();
     atBottom = true;
     scrollToBottom(true);
     closeDrawer();
   }
 
   function deleteConv(id) {
-    if (ui.streaming) { toast('请先停止当前生成'); return; }
+    if (ui.streaming) {
+      toast('请先停止当前生成');
+      return;
+    }
     var i = -1;
     for (var k = 0; k < state.convs.length; k++) if (state.convs[k].id === id) i = k;
     if (i < 0) return;
     state.convs.splice(i, 1);
     if (state.currentId === id) state.currentId = state.convs.length ? state.convs[0].id : null;
     save();
-    renderChat(); renderDrawer();
+    renderChat();
+    renderDrawer();
   }
 
   function deleteMessage(i) {
@@ -1504,7 +1967,8 @@
     conv.messages.splice(i, 1);
     conv.ctx = null;
     conv.updatedAt = Date.now();
-    save(); renderChat();
+    save();
+    renderChat();
   }
 
   function regenerate(i) {
@@ -1514,12 +1978,16 @@
       conv.messages.pop();
     }
     if (!conv.messages.length) return;
-    save(); renderChat();
+    save();
+    renderChat();
     runAssistant(true);
   }
 
   function send() {
-    if (ui.streaming) { if (ui.abort) ui.abort.abort(); return; }
+    if (ui.streaming) {
+      if (ui.abort) ui.abort.abort();
+      return;
+    }
     stopSpeech();
     var text = inputEl.value.trim();
     var imgs = ui.pending.slice();
@@ -1568,7 +2036,11 @@
     var conv = currentConv();
     if (!conv) return;
     var s = state.settings;
-    if (!(s.apiKey || '').trim()) { openSettings(); toast('请先填写 API Key'); return; }
+    if (!(s.apiKey || '').trim()) {
+      openSettings();
+      toast('请先填写 API Key');
+      return;
+    }
 
     var apiMessages = buildApiMessages(conv, s, keepOverride || s.keepTurns, CONTEXT_BUDGET);
     if (!apiMessages.length) return;
@@ -1603,55 +2075,70 @@
       effort: s.effort,
       temperature: Number(s.temperature),
       signal: ui.abort ? ui.abort.signal : undefined,
-      onContent: function (c) { msg.content = c; schedulePaint(); },
-      onReasoning: function (r) { msg.reasoning = r; schedulePaint(); },
-      onUsage: function (u) { msg.usage = u; }
-    }).then(function (r) {
-      msg.streaming = false;
-      msg.usage = r.usage || msg.usage;
-      msg.ms = Date.now() - t0;
-      if (msg.usage && typeof msg.usage.prompt_tokens === 'number') {
-        conv.ctx = (msg.usage.prompt_tokens || 0) + (msg.usage.completion_tokens || 0);
+      onContent: function (c) {
+        msg.content = c;
+        schedulePaint();
+      },
+      onReasoning: function (r) {
+        msg.reasoning = r;
+        schedulePaint();
+      },
+      onUsage: function (u) {
+        msg.usage = u;
       }
-      if (tts.active && tts.idx === idx) {
-        if (tts.engine === 'system') flushSpeech(msg.content);
-        else if (msg.content) deepseekSay(stripForSpeech(msg.content), state.settings.ttsVoice);
-        else stopSpeech();
-      }
-    }).catch(function (err) {
-      msg.streaming = false;
-      if (err && err.name === 'AbortError') {
-        if (!msg.content && !msg.reasoning) { conv.messages.splice(idx, 1); removed = true; }
-        else msg.stopped = true;
-      } else if (allowRetry && isContextError(err)) {
-        conv.messages.splice(idx, 1);
-        removed = true;
-        retry = true;
-        var baseKeep = keepOverride || s.keepTurns;
-        retryKeep = baseKeep > 0 ? Math.max(2, Math.floor(baseKeep / 2)) : 40;
-      } else {
-        msg.error = describeErr(err);
-        if (tts.active && tts.idx === idx) stopSpeech();
-      }
-    }).then(function () {
-      ui.streaming = false;
-      ui.abort = null;
-      ui.msg = null;
-      if (!removed && (!conv.title || conv.title === '新对话')) conv.title = titleFrom(conv);
-      conv.updatedAt = Date.now();
-      renderChat();
-      syncSend();
-      scrollToBottom();
-      renderDrawer();
-      flushSave();
-      if (retry) {
-        toast('上下文过长，已临时精简历史后重试');
-        return runAssistant(false, retryKeep);
-      }
-      if (convTokens(conv) > MEM_TRIGGER) {
-        setTimeout(function () { compactMemory(conv); }, 600);
-      }
-    });
+    })
+      .then(function (r) {
+        msg.streaming = false;
+        msg.usage = r.usage || msg.usage;
+        msg.ms = Date.now() - t0;
+        if (msg.usage && typeof msg.usage.prompt_tokens === 'number') {
+          conv.ctx = (msg.usage.prompt_tokens || 0) + (msg.usage.completion_tokens || 0);
+        }
+        if (tts.active && tts.idx === idx) {
+          if (tts.engine === 'system') flushSpeech(msg.content);
+          else if (msg.content) deepseekSay(stripForSpeech(msg.content), state.settings.ttsVoice);
+          else stopSpeech();
+        }
+      })
+      .catch(function (err) {
+        msg.streaming = false;
+        if (err && err.name === 'AbortError') {
+          if (!msg.content && !msg.reasoning) {
+            conv.messages.splice(idx, 1);
+            removed = true;
+          } else msg.stopped = true;
+        } else if (allowRetry && isContextError(err)) {
+          conv.messages.splice(idx, 1);
+          removed = true;
+          retry = true;
+          var baseKeep = keepOverride || s.keepTurns;
+          retryKeep = baseKeep > 0 ? Math.max(2, Math.floor(baseKeep / 2)) : 40;
+        } else {
+          msg.error = describeErr(err);
+          if (tts.active && tts.idx === idx) stopSpeech();
+        }
+      })
+      .then(function () {
+        ui.streaming = false;
+        ui.abort = null;
+        ui.msg = null;
+        if (!removed && (!conv.title || conv.title === '新对话')) conv.title = titleFrom(conv);
+        conv.updatedAt = Date.now();
+        renderChat();
+        syncSend();
+        scrollToBottom();
+        renderDrawer();
+        flushSave();
+        if (retry) {
+          toast('上下文过长，已临时精简历史后重试');
+          return runAssistant(false, retryKeep);
+        }
+        if (convTokens(conv) > MEM_TRIGGER) {
+          setTimeout(function () {
+            compactMemory(conv);
+          }, 600);
+        }
+      });
   }
 
   /* ---------- composer ---------- */
@@ -1702,7 +2189,10 @@
     syncSeg('#segTtsAuto', s.ttsAuto === 'on' ? 'on' : 'off');
     syncSeg('#segTtsVoice', s.ttsVoice || 'system');
     $('#inpTtsRate').value = s.ttsRate || 1;
-    $('#ttsRateVal').textContent = Number(s.ttsRate || 1).toFixed(2).replace(/0$/, '') + '×';
+    $('#ttsRateVal').textContent =
+      Number(s.ttsRate || 1)
+        .toFixed(2)
+        .replace(/0$/, '') + '×';
     paintRange($('#inpTtsRate'));
     syncTtsNote();
     syncSeg('#segTheme', s.theme);
@@ -1722,7 +2212,9 @@
   }
   function paintRange(el) {
     if (!el) return;
-    var min = Number(el.min), max = Number(el.max), v = Number(el.value);
+    var min = Number(el.min),
+      max = Number(el.max),
+      v = Number(el.value);
     var p = max > min ? ((v - min) / (max - min)) * 100 : 0;
     el.style.setProperty('--p', p + '%');
   }
@@ -1735,12 +2227,17 @@
   }
   function syncModelNote() {
     var s = state.settings;
-    var m = MODELS.filter(function (x) { return x.id === s.model; })[0] || MODELS[0];
+    var m =
+      MODELS.filter(function (x) {
+        return x.id === s.model;
+      })[0] || MODELS[0];
     $('#modelDesc').textContent = m.desc + (m.vision ? ' · 可以发图片' : ' · 不支持图片');
     var thinking = !!s.thinking;
     $('#inpTemp').disabled = thinking;
     $('#tempField').style.opacity = thinking ? 0.42 : 1;
-    $('#tempTip').textContent = thinking ? '思考模式下温度不生效，关掉思考才可调' : '值越低回答越稳定，越高越发散';
+    $('#tempTip').textContent = thinking
+      ? '思考模式下温度不生效，关掉思考才可调'
+      : '值越低回答越稳定，越高越发散';
     var ef = $('#effortField');
     if (ef) ef.style.display = thinking ? '' : 'none';
   }
@@ -1767,16 +2264,27 @@
     var hh = ('0' + d.getHours()).slice(-2);
     var mm = ('0' + d.getMinutes()).slice(-2);
     var covered = conv.cutoff
-      ? conv.messages.filter(function (m) { return m.ts && m.ts < conv.cutoff; }).length
+      ? conv.messages.filter(function (m) {
+          return m.ts && m.ts < conv.cutoff;
+        }).length
       : 0;
-    el.textContent = '更新于 ' + (d.getMonth() + 1) + '/' + d.getDate() + ' ' + hh + ':' + mm +
-      (covered ? ' · 已压缩 ' + covered + ' 条消息' : '') + ' · 可手动修改';
+    el.textContent =
+      '更新于 ' +
+      (d.getMonth() + 1) +
+      '/' +
+      d.getDate() +
+      ' ' +
+      hh +
+      ':' +
+      mm +
+      (covered ? ' · 已压缩 ' + covered + ' 条消息' : '') +
+      ' · 可手动修改';
   }
 
   function syncKeyNote() {
     var v = ($('#inpKey').value || '').trim();
     $('#keyNote').textContent = v
-      ? (v.slice(0, 6) + '••••' + v.slice(-4) + ' · 仅保存在本机')
+      ? v.slice(0, 6) + '••••' + v.slice(-4) + ' · 仅保存在本机'
       : '格式类似 sk-xxxxxxxx，创建于 platform.deepseek.com';
   }
 
@@ -1784,7 +2292,10 @@
 
   function bind() {
     $('#openDrawer').addEventListener('click', openDrawer);
-    $('#backdrop').addEventListener('click', function () { closeDrawer(); closeSettings(); });
+    $('#backdrop').addEventListener('click', function () {
+      closeDrawer();
+      closeSettings();
+    });
     $('#newChat').addEventListener('click', newConv);
     $('#drawerNew').addEventListener('click', newConv);
     $('#btnProactive').addEventListener('click', proactiveOpen);
@@ -1792,7 +2303,10 @@
     $('#closeSettings').addEventListener('click', closeSettings);
     sendEl.addEventListener('click', send);
 
-    inputEl.addEventListener('input', function () { autosize(); syncSend(); });
+    inputEl.addEventListener('input', function () {
+      autosize();
+      syncSend();
+    });
     inputEl.addEventListener('keydown', function (e) {
       if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
         e.preventDefault();
@@ -1800,7 +2314,10 @@
       }
     });
     inputEl.addEventListener('focus', function () {
-      setTimeout(function () { atBottom = true; scrollToBottom(true); }, 250);
+      setTimeout(function () {
+        atBottom = true;
+        scrollToBottom(true);
+      }, 250);
     });
 
     $('#barSub').addEventListener('click', function () {
@@ -1809,15 +2326,29 @@
       var used = convTokens(conv);
       var pct = (used / CONTEXT_BUDGET) * 100;
       var src = typeof conv.ctx === 'number' ? '实际用量' : '本地估算';
-      toast('已用 ' + used.toLocaleString() + ' tokens（' + src + '）\n' +
-        '发送上限 ' + fmtTokens(CONTEXT_BUDGET) + '，模型上限 ' + fmtTokens(CTX_LIMIT) + '\n' +
-        (pct >= 85 ? '即将开始省略较早的消息' : '还剩 ' + fmtTokens(CONTEXT_BUDGET - used)));
+      toast(
+        '已用 ' +
+          used.toLocaleString() +
+          ' tokens（' +
+          src +
+          '）\n' +
+          '发送上限 ' +
+          fmtTokens(CONTEXT_BUDGET) +
+          '，模型上限 ' +
+          fmtTokens(CTX_LIMIT) +
+          '\n' +
+          (pct >= 85 ? '即将开始省略较早的消息' : '还剩 ' + fmtTokens(CONTEXT_BUDGET - used))
+      );
     });
 
-    chatEl.addEventListener('scroll', function () {
-      atBottom = chatEl.scrollHeight - chatEl.scrollTop - chatEl.clientHeight < 90;
-      updateScrollState();
-    }, { passive: true });
+    chatEl.addEventListener(
+      'scroll',
+      function () {
+        atBottom = chatEl.scrollHeight - chatEl.scrollTop - chatEl.clientHeight < 90;
+        updateScrollState();
+      },
+      { passive: true }
+    );
 
     $('#fab').addEventListener('click', function () {
       scrollToBottom(true);
@@ -1836,7 +2367,10 @@
           if (ok) {
             cp.textContent = '已复制';
             cp.classList.add('done');
-            setTimeout(function () { cp.textContent = '复制'; cp.classList.remove('done'); }, 1400);
+            setTimeout(function () {
+              cp.textContent = '复制';
+              cp.classList.remove('done');
+            }, 1400);
           } else toast('复制失败，请长按选择文本');
         });
         return;
@@ -1845,20 +2379,30 @@
       var chip = t.closest('[data-chip]');
       if (chip) {
         inputEl.value = chip.getAttribute('data-chip');
-        autosize(); syncSend();
+        autosize();
+        syncSend();
         inputEl.focus();
         return;
       }
 
       var att = t.closest('.att');
-      if (att) { openLightbox(att.getAttribute('src')); return; }
+      if (att) {
+        openLightbox(att.getAttribute('src'));
+        return;
+      }
 
       var act = t.closest('[data-act]');
       if (act) {
         var a = act.getAttribute('data-act');
         var conv = currentConv();
-        if (a === 'settings') { openSettings(); return; }
-        if (a === 'recover') { restoreBackup(); return; }
+        if (a === 'settings') {
+          openSettings();
+          return;
+        }
+        if (a === 'recover') {
+          restoreBackup();
+          return;
+        }
         if (a === 'more') {
           ui.renderLimit += 60;
           renderChat();
@@ -1879,8 +2423,14 @@
           else startSpeak(si);
           return;
         }
-        if (a === 'del') { deleteMessage(+act.getAttribute('data-i')); return; }
-        if (a === 'regen' || a === 'retry') { regenerate(+act.getAttribute('data-i')); return; }
+        if (a === 'del') {
+          deleteMessage(+act.getAttribute('data-i'));
+          return;
+        }
+        if (a === 'regen' || a === 'retry') {
+          regenerate(+act.getAttribute('data-i'));
+          return;
+        }
       }
 
       var convRow = t.closest('.conv');
@@ -1896,7 +2446,9 @@
             for (var k = 0; k < all.length; k++) all[k].classList.remove('arm');
             del.classList.add('arm');
             del.title = '再点一次删除';
-            setTimeout(function () { del.classList.remove('arm'); }, 2500);
+            setTimeout(function () {
+              del.classList.remove('arm');
+            }, 2500);
             toast('再点一次删除该会话');
           }
           return;
@@ -1938,7 +2490,9 @@
     });
     $('#mic').addEventListener('click', toggleVoice);
 
-    $('#attach').addEventListener('click', function () { $('#fileInput').click(); });
+    $('#attach').addEventListener('click', function () {
+      $('#fileInput').click();
+    });
     $('#fileInput').addEventListener('change', function (e) {
       addFiles(e.target.files);
       e.target.value = '';
@@ -1950,7 +2504,9 @@
       renderPreview();
       syncSend();
     });
-    $('#lightbox').addEventListener('click', function () { this.classList.remove('on'); });
+    $('#lightbox').addEventListener('click', function () {
+      this.classList.remove('on');
+    });
 
     document.querySelectorAll('#segTtsAuto button').forEach(function (b) {
       b.addEventListener('click', function () {
@@ -2063,7 +2619,11 @@
         return;
       }
       var conv = currentConv();
-      if (conv) { conv.memory = null; conv.cutoff = 0; conv.ctx = null; }
+      if (conv) {
+        conv.memory = null;
+        conv.cutoff = 0;
+        conv.ctx = null;
+      }
       $('#inpMemory').value = '';
       updateMemNote(conv);
       b.classList.remove('arm');
@@ -2074,7 +2634,9 @@
       toast('记忆已清空');
     });
 
-    $('#btnBalance').addEventListener('click', function () { fetchBalance(true); });
+    $('#btnBalance').addEventListener('click', function () {
+      fetchBalance(true);
+    });
     $('#btnRestore').addEventListener('click', restoreBackup);
     $('#btnSnapshots').addEventListener('click', loadSnapshots);
     $('#snapList').addEventListener('click', function (e) {
@@ -2082,7 +2644,9 @@
       if (b) restoreSnapshot(b.getAttribute('data-snap'));
     });
     $('#btnExport').addEventListener('click', exportData);
-    $('#btnImport').addEventListener('click', function () { $('#fileImport').click(); });
+    $('#btnImport').addEventListener('click', function () {
+      $('#fileImport').click();
+    });
     $('#fileImport').addEventListener('change', importData);
     $('#btnClearAll').addEventListener('click', function () {
       var b = $('#btnClearAll');
@@ -2098,7 +2662,8 @@
       state.convs = [];
       state.currentId = null;
       save();
-      renderChat(); renderDrawer();
+      renderChat();
+      renderDrawer();
       b.classList.remove('arm');
       b.textContent = '清空全部对话';
       toast('已清空');
@@ -2106,7 +2671,9 @@
 
     themeMQ.addEventListener('change', applyTheme);
     window.addEventListener('resize', fitViewport);
-    window.addEventListener('orientationchange', function () { setTimeout(fitViewport, 250); });
+    window.addEventListener('orientationchange', function () {
+      setTimeout(fitViewport, 250);
+    });
     if (window.visualViewport) {
       window.visualViewport.addEventListener('resize', fitViewport);
       window.visualViewport.addEventListener('scroll', fitViewport);
@@ -2121,7 +2688,10 @@
     document.addEventListener('visibilitychange', function () {
       if (document.visibilityState === 'hidden' && ui.dirty && navigator.sendBeacon) {
         try {
-          navigator.sendBeacon('/api/backup', new Blob([backupPayload()], { type: 'application/json' }));
+          navigator.sendBeacon(
+            '/api/backup',
+            new Blob([backupPayload()], { type: 'application/json' })
+          );
           ui.dirty = false;
         } catch (e) {}
       }
@@ -2131,7 +2701,9 @@
     document.addEventListener('visibilitychange', function () {
       if (document.visibilityState === 'hidden') flushSave();
     });
-    window.addEventListener('offline', function () { toast('网络已断开'); });
+    window.addEventListener('offline', function () {
+      toast('网络已断开');
+    });
   }
 
   /* ---------- 自动备份到电脑 ---------- */
@@ -2142,10 +2714,17 @@
       version: 2,
       savedAt: new Date().toISOString(),
       settings: {
-        model: s.model, system: s.system, temperature: s.temperature,
-        keepTurns: s.keepTurns, theme: s.theme, thinking: s.thinking,
-        effort: s.effort, memLevel: s.memLevel, ttsAuto: s.ttsAuto,
-        ttsVoice: s.ttsVoice, ttsRate: s.ttsRate
+        model: s.model,
+        system: s.system,
+        temperature: s.temperature,
+        keepTurns: s.keepTurns,
+        theme: s.theme,
+        thinking: s.thinking,
+        effort: s.effort,
+        memLevel: s.memLevel,
+        ttsAuto: s.ttsAuto,
+        ttsVoice: s.ttsVoice,
+        ttsRate: s.ttsRate
       },
       currentId: state.currentId,
       convs: state.convs
@@ -2161,43 +2740,62 @@
 
   function fetchBalance(force) {
     var key = (state.settings.apiKey || '').trim();
-    if (!key) { setBalance('先填 API Key'); return; }
+    if (!key) {
+      setBalance('先填 API Key');
+      return;
+    }
     if (!force && ui.balanceAt && Date.now() - ui.balanceAt < 60000) return;
     setBalance('查询中…');
     fetch('https://api.deepseek.com/user/balance', {
-      headers: { 'Authorization': 'Bearer ' + key }
-    }).then(function (r) {
-      return r.json().then(function (j) { return { ok: r.ok, j: j }; });
-    }).then(function (res) {
-      if (!res.ok) throw new Error((res.j && res.j.error && res.j.error.message) || '查询失败');
-      var infos = (res.j && res.j.balance_infos) || [];
-      var b = infos[0] || {};
-      var total = b.total_balance != null ? Number(b.total_balance) : 0;
-      var cur = b.currency || 'CNY';
-      ui.balanceAt = Date.now();
-      var shown = (cur === 'CNY' ? '¥' : cur + ' ') + (isFinite(total) ? total.toFixed(2) : '0.00');
-      setBalance(shown, total <= 0 ? 'zero' : (total < 5 ? 'low' : ''));
-    }).catch(function (e) {
-      setBalance('查询失败');
-    });
+      headers: { Authorization: 'Bearer ' + key }
+    })
+      .then(function (r) {
+        return r.json().then(function (j) {
+          return { ok: r.ok, j: j };
+        });
+      })
+      .then(function (res) {
+        if (!res.ok) throw new Error((res.j && res.j.error && res.j.error.message) || '查询失败');
+        var infos = (res.j && res.j.balance_infos) || [];
+        var b = infos[0] || {};
+        var total = b.total_balance != null ? Number(b.total_balance) : 0;
+        var cur = b.currency || 'CNY';
+        ui.balanceAt = Date.now();
+        var shown =
+          (cur === 'CNY' ? '¥' : cur + ' ') + (isFinite(total) ? total.toFixed(2) : '0.00');
+        setBalance(shown, total <= 0 ? 'zero' : total < 5 ? 'low' : '');
+      })
+      .catch(function (e) {
+        setBalance('查询失败');
+      });
   }
 
   function updateGuardNote() {
     var el = document.getElementById('guardNote');
     if (!el) return;
     var json = '';
-    try { json = JSON.stringify(state); } catch (e) {}
+    try {
+      json = JSON.stringify(state);
+    } catch (e) {}
     var bytes = json ? new Blob([json]).size : 0;
     var mb = (bytes / 1024 / 1024).toFixed(2);
     var tight = bytes > 3.5 * 1024 * 1024;
     var le = state.settings.lastExportAt;
     var exportTxt = le
-      ? (new Date(le).getMonth() + 1) + '/' + new Date(le).getDate()
+      ? new Date(le).getMonth() + 1 + '/' + new Date(le).getDate()
       : '<span class="warn">从未导出</span>';
     el.innerHTML =
-      '<b>本地占用</b> ' + mb + ' MB / 约 5 MB' + (tight ? ' <span class="warn">偏满</span>' : '') + '<br>' +
-      '<b>最近导出</b> ' + exportTxt + '<br>' +
-      '<b>当前地址</b> ' + esc(location.host) + '（换地址=换保险箱）';
+      '<b>本地占用</b> ' +
+      mb +
+      ' MB / 约 5 MB' +
+      (tight ? ' <span class="warn">偏满</span>' : '') +
+      '<br>' +
+      '<b>最近导出</b> ' +
+      exportTxt +
+      '<br>' +
+      '<b>当前地址</b> ' +
+      esc(location.host) +
+      '（换地址=换保险箱）';
   }
 
   function updateBackupNote() {
@@ -2214,28 +2812,37 @@
     var d = new Date(ui.backupAt);
     var hh = ('0' + d.getHours()).slice(-2);
     var mm = ('0' + d.getMinutes()).slice(-2);
-    el.textContent = '已自动备份 · ' + hh + ':' + mm +
+    el.textContent =
+      '已自动备份 · ' +
+      hh +
+      ':' +
+      mm +
       (ui.backupLocs > 1 ? ' · ' + ui.backupLocs + ' 处落盘' : '') +
       ' · 浏览器数据被清也能找回';
   }
 
   function hasAnyMessages() {
-    return state.convs.some(function (c) { return c.messages && c.messages.length; });
+    return state.convs.some(function (c) {
+      return c.messages && c.messages.length;
+    });
   }
 
   function probeServerBackup() {
     if (hasAnyMessages()) return;
-    fetch('/api/backup/latest').then(function (r) {
-      return r.ok ? r.json() : null;
-    }).then(function (d) {
-      var n = ((d && d.convs) || []).filter(function (c) {
-        return c && c.messages && c.messages.length;
-      }).length;
-      if (n > 0) {
-        ui.foundBackup = n;
-        renderChat();
-      }
-    }).catch(function () {});
+    fetch('/api/backup/latest')
+      .then(function (r) {
+        return r.ok ? r.json() : null;
+      })
+      .then(function (d) {
+        var n = ((d && d.convs) || []).filter(function (c) {
+          return c && c.messages && c.messages.length;
+        }).length;
+        if (n > 0) {
+          ui.foundBackup = n;
+          renderChat();
+        }
+      })
+      .catch(function () {});
   }
 
   function scheduleBackup() {
@@ -2248,43 +2855,56 @@
   function pushBackup(silent) {
     if (!hasAnyMessages()) return Promise.resolve(false);
     var body;
-    try { body = backupPayload(); } catch (e) { return Promise.resolve(false); }
+    try {
+      body = backupPayload();
+    } catch (e) {
+      return Promise.resolve(false);
+    }
     return fetch('/api/backup', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: body
-    }).then(function (r) {
-      return r.json();
-    }).then(function (j) {
-      if (!j || !j.ok) throw new Error((j && j.error) || '服务端拒绝');
-      ui.dirty = false;
-      ui.backupAt = Date.now();
-      ui.backupErr = '';
-      ui.backupLocs = j.locations || 1;
-      updateGuardNote();
-      updateBackupNote();
-      if (!silent) toast('已备份到电脑');
-      return true;
-    }).catch(function (e) {
-      ui.backupErr = (e && e.message) || '网络错误';
-      updateBackupNote();
-      if (!silent) toast('备份失败：' + ui.backupErr);
-      return false;
-    });
+    })
+      .then(function (r) {
+        return r.json();
+      })
+      .then(function (j) {
+        if (!j || !j.ok) throw new Error((j && j.error) || '服务端拒绝');
+        ui.dirty = false;
+        ui.backupAt = Date.now();
+        ui.backupErr = '';
+        ui.backupLocs = j.locations || 1;
+        updateGuardNote();
+        updateBackupNote();
+        if (!silent) toast('已备份到电脑');
+        return true;
+      })
+      .catch(function (e) {
+        ui.backupErr = (e && e.message) || '网络错误';
+        updateBackupNote();
+        if (!silent) toast('备份失败：' + ui.backupErr);
+        return false;
+      });
   }
 
   function mergeBackupData(data) {
     if (ui.streaming) throw new Error('请先停止当前生成');
     var convs = (data && data.convs) || [];
     if (!convs.length) throw new Error('备份里没有对话');
-    var added = 0, replaced = 0;
+    var added = 0,
+      replaced = 0;
     var byId = {};
-    state.convs.forEach(function (c) { byId[c.id] = c; });
+    state.convs.forEach(function (c) {
+      byId[c.id] = c;
+    });
     convs.forEach(function (c) {
       if (!c || !Array.isArray(c.messages)) return;
       var cur = byId[c.id];
-      if (!cur) { state.convs.push(c); byId[c.id] = c; added++; }
-      else if (c.messages.length > cur.messages.length) {
+      if (!cur) {
+        state.convs.push(c);
+        byId[c.id] = c;
+        added++;
+      } else if (c.messages.length > cur.messages.length) {
         var i = state.convs.indexOf(cur);
         state.convs[i] = c;
         replaced++;
@@ -2307,35 +2927,69 @@
   function loadSnapshots() {
     var box = document.getElementById('snapList');
     if (!box) return;
-    if (!box.hidden) { box.hidden = true; return; }
+    if (!box.hidden) {
+      box.hidden = true;
+      return;
+    }
     box.hidden = false;
     box.innerHTML = '<div class="desc">正在读取…</div>';
-    fetch('/api/backup/list').then(function (r) { return r.json(); }).then(function (j) {
-      var list = (j && j.snapshots) || [];
-      if (!list.length) { box.innerHTML = '<div class="desc">电脑上还没有快照</div>'; return; }
-      box.innerHTML = list.map(function (s) {
-        var d = new Date(s.at);
-        var p = function (n) { return ('0' + n).slice(-2); };
-        var label = (d.getMonth() + 1) + '/' + d.getDate() + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
-        return '<button class="snap" data-snap="' + s.name + '">' +
-          '<span class="t">' + label + '</span>' +
-          '<span class="s">' + fmtSize(s.size) + '</span></button>';
-      }).join('');
-    }).catch(function () {
-      box.innerHTML = '<div class="desc">读取失败，电脑上的服务没开？</div>';
-    });
+    fetch('/api/backup/list')
+      .then(function (r) {
+        return r.json();
+      })
+      .then(function (j) {
+        var list = (j && j.snapshots) || [];
+        if (!list.length) {
+          box.innerHTML = '<div class="desc">电脑上还没有快照</div>';
+          return;
+        }
+        box.innerHTML = list
+          .map(function (s) {
+            var d = new Date(s.at);
+            var p = function (n) {
+              return ('0' + n).slice(-2);
+            };
+            var label =
+              d.getMonth() +
+              1 +
+              '/' +
+              d.getDate() +
+              ' ' +
+              p(d.getHours()) +
+              ':' +
+              p(d.getMinutes());
+            return (
+              '<button class="snap" data-snap="' +
+              s.name +
+              '">' +
+              '<span class="t">' +
+              label +
+              '</span>' +
+              '<span class="s">' +
+              fmtSize(s.size) +
+              '</span></button>'
+            );
+          })
+          .join('');
+      })
+      .catch(function () {
+        box.innerHTML = '<div class="desc">读取失败，电脑上的服务没开？</div>';
+      });
   }
 
   function restoreSnapshot(name) {
-    fetch('/api/backup/get?name=' + encodeURIComponent(name)).then(function (r) {
-      if (!r.ok) throw new Error('这个快照取不到');
-      return r.json();
-    }).then(function (data) {
-      var r = mergeBackupData(data);
-      toast('已恢复：新增 ' + r.added + '，更新 ' + r.replaced);
-    }).catch(function (e) {
-      toast('恢复失败：' + ((e && e.message) || '未知错误'));
-    });
+    fetch('/api/backup/get?name=' + encodeURIComponent(name))
+      .then(function (r) {
+        if (!r.ok) throw new Error('这个快照取不到');
+        return r.json();
+      })
+      .then(function (data) {
+        var r = mergeBackupData(data);
+        toast('已恢复：新增 ' + r.added + '，更新 ' + r.replaced);
+      })
+      .catch(function (e) {
+        toast('恢复失败：' + ((e && e.message) || '未知错误'));
+      });
   }
 
   function restoreBackup() {
@@ -2350,17 +3004,23 @@
       }, 3000);
       return;
     }
-    if (b) { b.classList.remove('arm'); b.textContent = '从电脑恢复'; }
+    if (b) {
+      b.classList.remove('arm');
+      b.textContent = '从电脑恢复';
+    }
 
-    fetch('/api/backup/latest').then(function (r) {
-      if (!r.ok) throw new Error('电脑上还没有备份');
-      return r.json();
-    }).then(function (data) {
-      var r = mergeBackupData(data);
-      toast('已恢复：新增 ' + r.added + ' 个会话，更新 ' + r.replaced + ' 个');
-    }).catch(function (e) {
-      toast('恢复失败：' + ((e && e.message) || '未知错误'));
-    });
+    fetch('/api/backup/latest')
+      .then(function (r) {
+        if (!r.ok) throw new Error('电脑上还没有备份');
+        return r.json();
+      })
+      .then(function (data) {
+        var r = mergeBackupData(data);
+        toast('已恢复：新增 ' + r.added + ' 个会话，更新 ' + r.replaced + ' 个');
+      })
+      .catch(function (e) {
+        toast('恢复失败：' + ((e && e.message) || '未知错误'));
+      });
   }
 
   /* ---------- export / import ---------- */
@@ -2374,7 +3034,10 @@
       a.download = name;
       document.body.appendChild(a);
       a.click();
-      setTimeout(function () { document.body.removeChild(a); URL.revokeObjectURL(url); }, 1500);
+      setTimeout(function () {
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }, 1500);
       toast('已导出到「文件」');
     } catch (e) {
       copyText(text).then(function (ok) {
@@ -2400,7 +3063,10 @@
       },
       convs: state.convs
     };
-    download('deepseek-chat-backup-' + new Date().toISOString().slice(0, 10) + '.json', JSON.stringify(pay, null, 2));
+    download(
+      'deepseek-chat-backup-' + new Date().toISOString().slice(0, 10) + '.json',
+      JSON.stringify(pay, null, 2)
+    );
   }
 
   function importData(e) {
@@ -2410,19 +3076,25 @@
     fr.onload = function () {
       try {
         var j = JSON.parse(String(fr.result));
-        var convs = Array.isArray(j.convs) ? j.convs : (Array.isArray(j) ? j : null);
+        var convs = Array.isArray(j.convs) ? j.convs : Array.isArray(j) ? j : null;
         if (!convs) throw new Error('格式不正确');
         var added = 0;
         convs.forEach(function (c) {
           if (!c || !Array.isArray(c.messages)) return;
           c.id = c.id || uid();
-          if (state.convs.some(function (x) { return x.id === c.id; })) c.id = uid();
+          if (
+            state.convs.some(function (x) {
+              return x.id === c.id;
+            })
+          )
+            c.id = uid();
           state.convs.push(c);
           added++;
         });
         if (!state.currentId && state.convs.length) state.currentId = state.convs[0].id;
         save();
-        renderChat(); renderDrawer();
+        renderChat();
+        renderDrawer();
         toast('已导入 ' + added + ' 个会话');
       } catch (err) {
         toast('导入失败：文件格式不正确');
@@ -2456,20 +3128,25 @@
   function showFatal(msg) {
     try {
       var box = document.createElement('div');
-      box.style.cssText = 'position:fixed;inset:0;z-index:99999;background:#0b0d13;color:#e9ecf3;' +
+      box.style.cssText =
+        'position:fixed;inset:0;z-index:99999;background:#0b0d13;color:#e9ecf3;' +
         'font:14px/1.6 -apple-system,sans-serif;padding:calc(env(safe-area-inset-top,0px) + 40px) 22px 22px;white-space:pre-wrap';
-      box.innerHTML = '<div style="font-size:17px;font-weight:600;margin-bottom:12px">页面没能启动</div>' +
+      box.innerHTML =
+        '<div style="font-size:17px;font-weight:600;margin-bottom:12px">页面没能启动</div>' +
         '<div style="color:#9aa4b8;margin-bottom:16px" id="fatalMsg"></div>' +
         '<button id="fatalReload" style="padding:10px 18px;border-radius:12px;background:#3d7bff;color:#fff;border:0;font-size:15px">重新加载</button>' +
         '<div style="color:#5f6a7e;font-size:12px;margin-top:14px">把这个画面截图发给助手，能直接定位问题。</div>';
       document.body.appendChild(box);
       document.getElementById('fatalMsg').textContent = String(msg || '未知错误');
-      document.getElementById('fatalReload').onclick = function () { location.reload(); };
+      document.getElementById('fatalReload').onclick = function () {
+        location.reload();
+      };
     } catch (e) {}
   }
 
   window.addEventListener('error', function (e) {
-    if (e && e.message) showFatal(e.message + (e.filename ? '\n' + e.filename + ':' + e.lineno : ''));
+    if (e && e.message)
+      showFatal(e.message + (e.filename ? '\n' + e.filename + ':' + e.lineno : ''));
   });
   window.addEventListener('unhandledrejection', function (e) {
     var r = e && e.reason;
@@ -2477,8 +3154,11 @@
   });
 
   function safeBoot() {
-    try { boot(); }
-    catch (err) { showFatal('启动失败：' + ((err && err.message) || err)); }
+    try {
+      boot();
+    } catch (err) {
+      showFatal('启动失败：' + ((err && err.message) || err));
+    }
   }
 
   if (document.readyState === 'loading') {
