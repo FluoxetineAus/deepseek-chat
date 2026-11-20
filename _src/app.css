@@ -91,6 +91,7 @@ html[data-resolved='light'] {
 html,
 body {
   margin: 0;
+  touch-action: pan-x pan-y;
   padding: 0;
   height: 100%;
   overflow: hidden;
@@ -115,7 +116,7 @@ body {
     sans-serif;
   letter-spacing: -0.011em;
   overscroll-behavior: none;
-  touch-action: manipulation;
+  touch-action: pan-x pan-y;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -1405,7 +1406,7 @@ html[data-resolved='light'] .logo {
   color: var(--dim-2);
 }
 textarea.inp {
-  font-size: 15px;
+  font-size: 16px;
   line-height: 1.6;
   min-height: 88px;
   resize: none;
@@ -1828,7 +1829,7 @@ textarea {
 
 #inpMemory {
   min-height: 210px;
-  font-size: 14px;
+  font-size: 16px;
   line-height: 1.6;
 }
 

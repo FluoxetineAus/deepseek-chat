@@ -2,7 +2,7 @@
 <html lang="zh-CN" data-theme="auto" data-resolved="dark">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>DeepSeek 对话</title>
 <meta name="description" content="在 iPhone 上和 DeepSeek 对话的本地网页应用">
 <meta name="color-scheme" content="dark light">
@@ -108,6 +108,7 @@ html[data-resolved='light'] {
 html,
 body {
   margin: 0;
+  touch-action: pan-x pan-y;
   padding: 0;
   height: 100%;
   overflow: hidden;
@@ -132,7 +133,7 @@ body {
     sans-serif;
   letter-spacing: -0.011em;
   overscroll-behavior: none;
-  touch-action: manipulation;
+  touch-action: pan-x pan-y;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -1422,7 +1423,7 @@ html[data-resolved='light'] .logo {
   color: var(--dim-2);
 }
 textarea.inp {
-  font-size: 15px;
+  font-size: 16px;
   line-height: 1.6;
   min-height: 88px;
   resize: none;
@@ -1845,7 +1846,7 @@ textarea {
 
 #inpMemory {
   min-height: 210px;
-  font-size: 14px;
+  font-size: 16px;
   line-height: 1.6;
 }
 
@@ -5401,6 +5402,11 @@ textarea {
     state = loadState();
     applyTheme();
     bind();
+    // 禁止双指缩放（iOS Safari 会忽略 viewport 的 user-scalable，这里再兜一层）
+    ['gesturestart', 'gesturechange', 'gestureend'].forEach(function (ev) {
+      document.addEventListener(ev, function (e) { e.preventDefault(); }, { passive: false });
+    });
+
     // 环境不支持语音（非 HTTPS 或无识别接口）时，不显示麦克风，避免留下死按钮
     var micEl = document.getElementById('mic');
     if (micEl && (!window.isSecureContext || !SpeechRec())) micEl.style.display = 'none';

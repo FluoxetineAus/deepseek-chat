@@ -3143,6 +3143,11 @@
     state = loadState();
     applyTheme();
     bind();
+    // 禁止双指缩放（iOS Safari 会忽略 viewport 的 user-scalable，这里再兜一层）
+    ['gesturestart', 'gesturechange', 'gestureend'].forEach(function (ev) {
+      document.addEventListener(ev, function (e) { e.preventDefault(); }, { passive: false });
+    });
+
     // 环境不支持语音（非 HTTPS 或无识别接口）时，不显示麦克风，避免留下死按钮
     var micEl = document.getElementById('mic');
     if (micEl && (!window.isSecureContext || !SpeechRec())) micEl.style.display = 'none';
