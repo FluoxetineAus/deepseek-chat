@@ -13,7 +13,7 @@ const base = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
 const now = Date.now();
 const seed = {
   settings: {
-    apiKey: 'sk-demo0000000000000000000000000000',
+    apiKey: 'sk-fake-only-for-screenshots',
     model: 'deepseek-chat',
     system: '',
     temperature: 1.0,
