@@ -124,6 +124,12 @@
     return kt <= 30 ? 20 : kt <= 80 ? 60 : 0;
   }
 
+  function sortConvs(list) {
+    return list.slice().sort(function (a, b) {
+      return (b.starred ? 1 : 0) - (a.starred ? 1 : 0);
+    });
+  }
+
   function fmtTokens(n) {
     n = Number(n) || 0;
     if (n < 1000) return String(n);
@@ -801,6 +807,7 @@
 
   var PURE = {
     uid: uid,
+    sortConvs: sortConvs,
     esc: esc,
     estTokens: estTokens,
     isContextError: isContextError,
@@ -825,6 +832,7 @@
   if (typeof document === 'undefined' || !document.getElementById('app')) return;
 
   var ICON = {
+    star: '<svg viewBox="0 0 24 24"><path d="M12 3.5l2.6 5.4 5.9.8-4.3 4.1 1 5.9-5.2-2.8-5.2 2.8 1-5.9L3.5 9.7l5.9-.8z"/></svg>',
     send: '<svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg>',
     stop: '<svg viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>',
     copy: '<svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/></svg>',
@@ -1868,18 +1876,20 @@
   }
 
   function renderDrawer() {
-    var list = $('#convList');
+    var list = document.getElementById('convList');
+    if (!list) return;
     if (!state.convs.length) {
       list.innerHTML =
         '<div style="padding:26px 10px;text-align:center;color:var(--dim2);font-size:13px">还没有会话</div>';
       return;
     }
-    list.innerHTML = state.convs
+    list.innerHTML = sortConvs(state.convs)
       .map(function (c) {
         var n = c.messages.length;
         return (
           '<div class="conv' +
           (c.id === state.currentId ? ' on' : '') +
+          (c.starred ? ' starred' : '') +
           '" data-id="' +
           c.id +
           '">' +
@@ -1890,6 +1900,13 @@
           fmtWhen(c.updatedAt || c.createdAt) +
           (n ? ' · ' + n + ' 条' : ' · 空') +
           '</div></div>' +
+          '<button class="conv-btn star' +
+          (c.starred ? ' on' : '') +
+          '" data-star="' +
+          c.id +
+          '" aria-label="星标">' +
+          ICON.star +
+          '</button>' +
           '<button class="conv-del" data-del="' +
           c.id +
           '" aria-label="删除会话">' +
@@ -1991,6 +2008,16 @@
     atBottom = true;
     scrollToBottom(true);
     closeDrawer();
+  }
+
+  function toggleStar(id) {
+    var c = null;
+    for (var i = 0; i < state.convs.length; i++) if (state.convs[i].id === id) c = state.convs[i];
+    if (!c) return;
+    c.starred = !c.starred;
+    save();
+    renderDrawer();
+    toast(c.starred ? '已置顶' : '已取消置顶');
   }
 
   function deleteConv(id) {
@@ -2496,6 +2523,13 @@
           regenerate(+act.getAttribute('data-i'));
           return;
         }
+      }
+
+      var starBtn = t.closest('[data-star]');
+      if (starBtn) {
+        e.stopPropagation();
+        toggleStar(starBtn.getAttribute('data-star'));
+        return;
       }
 
       var convRow = t.closest('.conv');

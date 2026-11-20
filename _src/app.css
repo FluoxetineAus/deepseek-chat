@@ -2039,3 +2039,37 @@ textarea {
 }
 .sources a:active { opacity: .6; }
 .sources a .host { color: var(--dim-2); font-size: 11px; margin-left: 4px; }
+
+
+/* ---------- 会话星标 ---------- */
+.conv-btn {
+  width: 26px;
+  height: 26px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  color: var(--dim-2);
+  transition: color 0.15s, background 0.15s, transform 0.12s;
+}
+.conv-btn:active {
+  transform: scale(0.9);
+  background: var(--glass-2);
+}
+.conv-btn svg {
+  width: 15px;
+  height: 15px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.7;
+  stroke-linejoin: round;
+}
+.conv-btn.star.on {
+  color: #f5b93b;
+}
+.conv-btn.star.on svg {
+  fill: currentColor;
+}
+.conv.starred .t {
+  color: var(--text);
+}

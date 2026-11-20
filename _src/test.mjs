@@ -113,6 +113,14 @@ ok('朗读前清洗 Markdown', () => {
   assert.ok(t.includes('代码'), '代码块替换成一句提示');
 });
 
+ok('星标会话置顶且不改动原数组', () => {
+  const list = [{ id: 'a' }, { id: 'b', starred: true }, { id: 'c' }, { id: 'd', starred: true }];
+  const out = app.sortConvs(list);
+  assert.deepEqual(out.map((x) => x.id), ['b', 'd', 'a', 'c'], '星标在前，其余保持原序');
+  assert.deepEqual(list.map((x) => x.id), ['a', 'b', 'c', 'd'], '不能修改原数组');
+  assert.deepEqual(app.sortConvs([]), []);
+});
+
 ok('记忆范围迁移不破坏「长记忆」', () => {
   const n = app.normalizeKeepTurns;
   assert.equal(n(0), 0, '长记忆(0)必须原样保留');
