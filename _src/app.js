@@ -2805,7 +2805,7 @@
       exportTxt +
       '<br>' +
       '<b>当前地址</b> ' +
-      esc(location.host) +
+      esc(location.host || location.protocol || '本地文件') +
       '（换地址=换保险箱）';
   }
 
