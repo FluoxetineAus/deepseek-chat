@@ -611,6 +611,72 @@ await okAsync('纯图片消息（无文字）也能发出', async () => {
   }
 });
 
+await okAsync('联网：声明服务端工具并解析引用', async () => {
+  let seen = null;
+  const { srv, url } = await mock((req, res, json) => {
+    seen = json;
+    streamOK(res, [
+      sse({ choices: [{ delta: { content: '冰岛人口约 39 万。' } }] }),
+      sse({ choices: [{ delta: {
+        annotations: [
+          { type: 'url_citation', url_citation: { url: 'https://a.com/x', title: 'A 网站', start_index: 0, end_index: 5 } },
+          { type: 'url_citation', url_citation: { url: 'https://a.com/x', title: 'A 网站', start_index: 6, end_index: 9 } }
+        ],
+        server_tool_calls: [
+          { index: 0, calls: [{ index: 0, type: 'deepseek_web_search', kind: 'search', action: { type: 'search', queries: ['iceland population'] }, status: 'completed' }] }
+        ]
+      }, finish_reason: 'stop' }] }),
+      'data: [DONE]\n\n'
+    ]);
+  });
+  try {
+    const r = await app.streamChat({
+      apiKey: 'k', model: 'deepseek-flash', endpoint: url, web: true,
+      messages: [{ role: 'user', content: '冰岛人口' }]
+    });
+    assert.deepEqual(seen.tools, [{ type: 'deepseek_web_search' }, { type: 'deepseek_read_url' }], '应声明两个工具');
+    assert.equal(r.searched, true, '应标记为联网过');
+    assert.equal(r.citations.length, 1, '同一 URL 应去重');
+    assert.equal(r.citations[0].url, 'https://a.com/x');
+    assert.equal(r.content, '冰岛人口约 39 万。');
+  } finally { srv.close(); }
+});
+
+await okAsync('联网：读链接的来源也算引用', async () => {
+  const { srv, url } = await mock((req, res) => {
+    streamOK(res, [
+      sse({ choices: [{ delta: { content: '看过了。' } }] }),
+      sse({ choices: [{ delta: { server_tool_calls: [
+        { index: 0, calls: [{ index: 0, type: 'deepseek_read_url', kind: 'read_link',
+          action: { type: 'read_link', url: 'https://b.com/p' },
+          status: 'completed', page: { url: 'https://b.com/p', title: 'B 的文章' } }] }
+      ] }, finish_reason: 'stop' }] }),
+      'data: [DONE]\n\n'
+    ]);
+  });
+  try {
+    const r = await app.streamChat({
+      apiKey: 'k', model: 'deepseek-flash', endpoint: url, web: true,
+      messages: [{ role: 'user', content: '总结 https://b.com/p' }]
+    });
+    assert.equal(r.searched, true);
+    assert.equal(r.citations[0].url, 'https://b.com/p');
+    assert.equal(r.citations[0].title, 'B 的文章');
+  } finally { srv.close(); }
+});
+
+await okAsync('未开启联网时不声明 tools', async () => {
+  let seen = null;
+  const { srv, url } = await mock((req, res, json) => {
+    seen = json;
+    streamOK(res, [sse({ choices: [{ delta: { content: 'x' } }] }), 'data: [DONE]\n\n']);
+  });
+  try {
+    await app.streamChat({ apiKey: 'k', model: 'deepseek-flash', endpoint: url, messages: [{ role: 'user', content: 'x' }] });
+    assert.equal(seen.tools, undefined, '不该带 tools');
+  } finally { srv.close(); }
+});
+
 await okAsync('空回答 → 抛 EMPTY', async () => {
   const { srv, url } = await mock((req, res) => {
     streamOK(res, ['data: [DONE]\n\n']);

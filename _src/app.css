@@ -1990,3 +1990,52 @@ textarea {
   font-size: 9.5px;
   padding: 1px 6px;
 }
+
+
+/* ---------- 联网搜索 ---------- */
+.attach.web.on {
+  color: #fff;
+  background: linear-gradient(145deg, var(--accent), var(--accent-2));
+  box-shadow: 0 4px 14px -6px rgba(61, 123, 255, .9);
+}
+.searchhint {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12.5px;
+  color: var(--accent);
+  padding: 3px 0;
+}
+.searchhint::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: pulse 1.1s ease-in-out infinite;
+}
+.sources {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--stroke);
+  font-size: 12.5px;
+}
+.sources .sh {
+  color: var(--dim-2);
+  margin-bottom: 6px;
+  letter-spacing: .04em;
+}
+.sources a {
+  display: block;
+  color: var(--text-2);
+  text-decoration: none;
+  padding: 5px 0;
+  line-height: 1.45;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.sources a:active { opacity: .6; }
+.sources a .host { color: var(--dim-2); font-size: 11px; margin-left: 4px; }

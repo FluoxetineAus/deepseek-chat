@@ -451,6 +451,11 @@
       if (o.effort) body.reasoning_effort = o.effort;
     }
 
+    // 联网搜索：服务端工具，模型自行决定是否调用
+    if (o.web) {
+      body.tools = [{ type: 'deepseek_web_search' }, { type: 'deepseek_read_url' }];
+    }
+
     var url = o.endpoint || API_URL;
 
     function doFetch() {
@@ -473,6 +478,8 @@
     var content = '';
     var reasoning = '';
     var usage = null;
+    var citations = [];
+    var searched = false;
 
     var parser = createSSEParser(function (ev) {
       if (ev.done) return;
@@ -484,6 +491,31 @@
       var ch = j.choices && j.choices[0];
       if (!ch) return;
       var d = ch.delta || {};
+
+      // 联网：来源引用与工具调用（流式时在最后一个 chunk 一次性下发）
+      if (d.annotations && d.annotations.length) {
+        d.annotations.forEach(function (a) {
+          var c = a && a.url_citation;
+          if (c && c.url && !citations.some(function (x) { return x.url === c.url; })) {
+            citations.push({ url: c.url, title: c.title || c.url });
+          }
+        });
+        if (o.onCitations) o.onCitations(citations.slice());
+      }
+      if (d.server_tool_calls && d.server_tool_calls.length) {
+        d.server_tool_calls.forEach(function (step) {
+          (step.calls || []).forEach(function (call) {
+            if (call && (call.kind === 'search' || call.kind === 'deep_search' || call.kind === 'read_link')) {
+              searched = true;
+            }
+            // read_link 的来源也计入
+            if (call && call.page && call.page.url &&
+                !citations.some(function (x) { return x.url === call.page.url; })) {
+              citations.push({ url: call.page.url, title: call.page.title || call.page.url });
+            }
+          });
+        });
+      }
       if (typeof d.reasoning_content === 'string' && d.reasoning_content) {
         reasoning += d.reasoning_content;
         if (o.onReasoning) o.onReasoning(reasoning);
@@ -553,7 +585,7 @@
         e2.code = 'EMPTY';
         throw e2;
       }
-      return { content: content, reasoning: reasoning, usage: usage };
+      return { content: content, reasoning: reasoning, usage: usage, citations: citations, searched: searched };
     }
   }
 
@@ -1646,9 +1678,20 @@
     if (m.reasoning) h += thinkHTML(m.reasoning);
     var inner;
     if (m.content) inner = renderMD(m.content) + (m.streaming ? '<span class="caret"></span>' : '');
+    else if (m.streaming && m.web) inner = '<div class="searchhint">正在联网搜索…</div>';
     else if (m.streaming) inner = '<div class="typing"><i></i><i></i><i></i></div>';
     else inner = '';
     h += '<div class="md">' + inner + '</div>';
+
+    if (m.citations && m.citations.length) {
+      h += '<div class="sources"><div class="sh">来源</div>' +
+        m.citations.map(function (c) {
+          var host = '';
+          try { host = new URL(c.url).hostname.replace(/^www\./, ''); } catch (e) { host = ''; }
+          return '<a href="' + esc(c.url) + '" target="_blank" rel="noopener noreferrer">' +
+            esc(c.title) + (host ? '<span class="host">' + esc(host) + '</span>' : '') + '</a>';
+        }).join('') + '</div>';
+    }
     if (m.error) {
       h +=
         '<div class="err"><div class="err-t">' +
@@ -1776,6 +1819,11 @@
     chatEl.innerHTML = '<div class="wrap">' + html + '</div>';
     updateBar();
     updateScrollState();
+  }
+
+  function syncWebToggle() {
+    var b = document.getElementById('webToggle');
+    if (b) b.classList.toggle('on', !!state.settings.webSearch);
   }
 
   function updateBar() {
@@ -2048,7 +2096,18 @@
     var sentCount = apiMessages.length - (hasSys ? 1 : 0);
     conv.trimmed = Math.max(0, countableMessages(conv) - sentCount);
 
-    var msg = { role: 'assistant', content: '', reasoning: '', ts: Date.now(), streaming: true };
+    var useWeb = !!state.settings.webSearch;
+    if (useWeb && s.model !== 'deepseek-flash') {
+      s.model = 'deepseek-flash';
+      syncSeg('#segModel', s.model);
+      syncModelNote();
+      updateBar();
+      toast('联网搜索需要 V4.1 Flash，已自动切换');
+    }
+    var msg = {
+      role: 'assistant', content: '', reasoning: '', ts: Date.now(),
+      streaming: true, web: useWeb
+    };
     conv.messages.push(msg);
     var idx = conv.messages.length - 1;
 
@@ -2085,12 +2144,18 @@
       },
       onUsage: function (u) {
         msg.usage = u;
+      },
+      web: useWeb,
+      onCitations: function (list) {
+        msg.citations = list;
       }
     })
       .then(function (r) {
         msg.streaming = false;
         msg.usage = r.usage || msg.usage;
         msg.ms = Date.now() - t0;
+        if (r.citations && r.citations.length) msg.citations = r.citations;
+        if (r.searched) msg.searched = true;
         if (msg.usage && typeof msg.usage.prompt_tokens === 'number') {
           conv.ctx = (msg.usage.prompt_tokens || 0) + (msg.usage.completion_tokens || 0);
         }
@@ -2488,6 +2553,13 @@
         save();
       });
     });
+    $('#webToggle').addEventListener('click', function () {
+      state.settings.webSearch = !state.settings.webSearch;
+      syncWebToggle();
+      save();
+      toast(state.settings.webSearch ? '联网搜索已开启，这条问题允许联网' : '联网搜索已关闭');
+    });
+
     $('#mic').addEventListener('click', toggleVoice);
 
     $('#attach').addEventListener('click', function () {
@@ -3158,6 +3230,7 @@
     if (!state.currentId && state.convs.length) state.currentId = state.convs[0].id;
     renderChat();
     renderDrawer();
+    syncWebToggle();
     syncSend();
     autosize();
     fitViewport();
