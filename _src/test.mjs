@@ -115,9 +115,19 @@ ok('朗读前清洗 Markdown', () => {
 
 ok('位置注入 system，可关闭', () => {
   const conv = { messages: [{ role: 'user', content: '今天热吗', ts: 1 }] };
-  const on = app.buildApiMessages(conv, { geo: { city: '杭州市', district: '拱墅区', on: true } }, 0, 999999);
+  const on = app.buildApiMessages(
+    conv,
+    { geo: { city: '杭州市', district: '拱墅区', on: true } },
+    0,
+    999999
+  );
   assert.ok(on[0].content.includes('【用户位置】杭州市 拱墅区'), on[0].content.slice(0, 200));
-  const off = app.buildApiMessages(conv, { geo: { city: '杭州市', district: '', on: false } }, 0, 999999);
+  const off = app.buildApiMessages(
+    conv,
+    { geo: { city: '杭州市', district: '', on: false } },
+    0,
+    999999
+  );
   assert.ok(!off[0].content.includes('【用户位置】'), '关闭时不应带位置');
   const none = app.buildApiMessages(conv, { geo: { city: '', on: true } }, 0, 999999);
   assert.ok(!none[0].content.includes('【用户位置】'), '没有位置时不应带');
@@ -128,8 +138,16 @@ ok('位置注入 system，可关闭', () => {
 ok('星标会话置顶且不改动原数组', () => {
   const list = [{ id: 'a' }, { id: 'b', starred: true }, { id: 'c' }, { id: 'd', starred: true }];
   const out = app.sortConvs(list);
-  assert.deepEqual(out.map((x) => x.id), ['b', 'd', 'a', 'c'], '星标在前，其余保持原序');
-  assert.deepEqual(list.map((x) => x.id), ['a', 'b', 'c', 'd'], '不能修改原数组');
+  assert.deepEqual(
+    out.map((x) => x.id),
+    ['b', 'd', 'a', 'c'],
+    '星标在前，其余保持原序'
+  );
+  assert.deepEqual(
+    list.map((x) => x.id),
+    ['a', 'b', 'c', 'd'],
+    '不能修改原数组'
+  );
   assert.deepEqual(app.sortConvs([]), []);
 });
 
@@ -285,6 +303,42 @@ ok('保留 system 并限制轮数', () => {
   assert.ok(body.length <= 6, '3 轮应最多 6 条，实际 ' + body.length);
   assert.equal(body[0].role, 'user', '裁剪后必须从 user 开始');
   assert.ok(body[body.length - 1].content === 'a29');
+});
+
+ok('每个对话的角色设定互相独立', () => {
+  const a = { system: '你是一只猫娘', messages: [{ role: 'user', content: 'hi', ts: 1 }] };
+  const b = { system: '你是一位严厉的老师', messages: [{ role: 'user', content: 'hi', ts: 1 }] };
+  const ma = app.buildApiMessages(a, { system: '全局公用' }, 0, 999999);
+  const mb = app.buildApiMessages(b, { system: '全局公用' }, 0, 999999);
+  assert.ok(ma[0].content.includes('猫娘'), 'A 用自己的设定');
+  assert.ok(!ma[0].content.includes('老师'), 'A 不带 B 的设定');
+  assert.ok(mb[0].content.includes('老师'), 'B 用自己的设定');
+  assert.ok(!mb[0].content.includes('猫娘'), 'B 不带 A 的设定');
+  assert.ok(!ma[0].content.includes('全局公用'), '不回落全局');
+  a.system = '';
+  assert.ok(
+    !app.buildApiMessages(a, { system: '全局公用' }, 0, 999999)[0].content.includes('全局公用'),
+    '清空后不回落全局'
+  );
+  assert.ok(app.buildApiMessages(b, {}, 0, 999999)[0].content.includes('老师'), '改 A 不影响 B');
+});
+
+ok('旧对话没有独立设定时回落全局（迁移前兜底）', () => {
+  const conv = { messages: [{ role: 'user', content: 'hi', ts: 1 }] };
+  const msgs = app.buildApiMessages(conv, { system: '旧全局设定' }, 0, 999999);
+  assert.ok(msgs[0].content.includes('旧全局设定'));
+});
+
+ok('旧数据迁移：给每个对话写入独立副本', () => {
+  const convs = [
+    { id: 'a', messages: [] },
+    { id: 'b', messages: [], system: '自己的' },
+    { id: 'c', messages: [], system: '' }
+  ];
+  app.adoptConvSystem(convs, '旧全局');
+  assert.equal(convs[0].system, '旧全局', '没有的补上');
+  assert.equal(convs[1].system, '自己的', '已有的不覆盖');
+  assert.equal(convs[2].system, '', '显式空串不覆盖');
 });
 
 ok('上下文保留图片块', () => {
@@ -641,14 +695,22 @@ await okAsync('输出被内容安全拦截 → BLOCKED', async () => {
   });
   try {
     await assert.rejects(
-      () => app.streamChat({ apiKey: 'k', model: 'deepseek-flash', endpoint: url, messages: [{ role: 'user', content: 'x' }] }),
+      () =>
+        app.streamChat({
+          apiKey: 'k',
+          model: 'deepseek-flash',
+          endpoint: url,
+          messages: [{ role: 'user', content: 'x' }]
+        }),
       (e) => {
         assert.equal(e.code, 'BLOCKED');
         assert.ok(/安全策略/.test(e.message), e.message);
         return true;
       }
     );
-  } finally { srv.close(); }
+  } finally {
+    srv.close();
+  }
 });
 
 await okAsync('输入被拦截（400 Content Exists Risk）', async () => {
@@ -658,14 +720,22 @@ await okAsync('输入被拦截（400 Content Exists Risk）', async () => {
   });
   try {
     await assert.rejects(
-      () => app.streamChat({ apiKey: 'k', model: 'deepseek-flash', endpoint: url, messages: [{ role: 'user', content: 'x' }] }),
+      () =>
+        app.streamChat({
+          apiKey: 'k',
+          model: 'deepseek-flash',
+          endpoint: url,
+          messages: [{ role: 'user', content: 'x' }]
+        }),
       (e) => {
         assert.equal(e.code, 'BLOCKED');
         assert.ok(/安全策略/.test(e.message), e.message);
         return true;
       }
     );
-  } finally { srv.close(); }
+  } finally {
+    srv.close();
+  }
 });
 
 await okAsync('锁定默认安全档：请求里不带 safety_check', async () => {
@@ -675,9 +745,17 @@ await okAsync('锁定默认安全档：请求里不带 safety_check', async () =
     streamOK(res, [sse({ choices: [{ delta: { content: 'x' } }] }), 'data: [DONE]\n\n']);
   });
   try {
-    await app.streamChat({ apiKey: 'k', model: 'deepseek-flash', endpoint: url, messages: [{ role: 'user', content: 'x' }], web: true });
+    await app.streamChat({
+      apiKey: 'k',
+      model: 'deepseek-flash',
+      endpoint: url,
+      messages: [{ role: 'user', content: 'x' }],
+      web: true
+    });
     assert.equal(seen.safety_check, undefined, '不得发送 safety_check');
-  } finally { srv.close(); }
+  } finally {
+    srv.close();
+  }
 });
 
 await okAsync('联网：声明服务端工具并解析引用', async () => {
@@ -686,52 +764,119 @@ await okAsync('联网：声明服务端工具并解析引用', async () => {
     seen = json;
     streamOK(res, [
       sse({ choices: [{ delta: { content: '冰岛人口约 39 万。' } }] }),
-      sse({ choices: [{ delta: {
-        annotations: [
-          { type: 'url_citation', url_citation: { url: 'https://a.com/x', title: 'A 网站', start_index: 0, end_index: 5 } },
-          { type: 'url_citation', url_citation: { url: 'https://a.com/x', title: 'A 网站', start_index: 6, end_index: 9 } }
-        ],
-        server_tool_calls: [
-          { index: 0, calls: [{ index: 0, type: 'deepseek_web_search', kind: 'search', action: { type: 'search', queries: ['iceland population'] }, status: 'completed' }] }
+      sse({
+        choices: [
+          {
+            delta: {
+              annotations: [
+                {
+                  type: 'url_citation',
+                  url_citation: {
+                    url: 'https://a.com/x',
+                    title: 'A 网站',
+                    start_index: 0,
+                    end_index: 5
+                  }
+                },
+                {
+                  type: 'url_citation',
+                  url_citation: {
+                    url: 'https://a.com/x',
+                    title: 'A 网站',
+                    start_index: 6,
+                    end_index: 9
+                  }
+                }
+              ],
+              server_tool_calls: [
+                {
+                  index: 0,
+                  calls: [
+                    {
+                      index: 0,
+                      type: 'deepseek_web_search',
+                      kind: 'search',
+                      action: { type: 'search', queries: ['iceland population'] },
+                      status: 'completed'
+                    }
+                  ]
+                }
+              ]
+            },
+            finish_reason: 'stop'
+          }
         ]
-      }, finish_reason: 'stop' }] }),
+      }),
       'data: [DONE]\n\n'
     ]);
   });
   try {
     const r = await app.streamChat({
-      apiKey: 'k', model: 'deepseek-flash', endpoint: url, web: true,
+      apiKey: 'k',
+      model: 'deepseek-flash',
+      endpoint: url,
+      web: true,
       messages: [{ role: 'user', content: '冰岛人口' }]
     });
-    assert.deepEqual(seen.tools, [{ type: 'deepseek_web_search' }, { type: 'deepseek_read_url' }], '应声明两个工具');
+    assert.deepEqual(
+      seen.tools,
+      [{ type: 'deepseek_web_search' }, { type: 'deepseek_read_url' }],
+      '应声明两个工具'
+    );
     assert.equal(r.searched, true, '应标记为联网过');
     assert.equal(r.citations.length, 1, '同一 URL 应去重');
     assert.equal(r.citations[0].url, 'https://a.com/x');
     assert.equal(r.content, '冰岛人口约 39 万。');
-  } finally { srv.close(); }
+  } finally {
+    srv.close();
+  }
 });
 
 await okAsync('联网：读链接的来源也算引用', async () => {
   const { srv, url } = await mock((req, res) => {
     streamOK(res, [
       sse({ choices: [{ delta: { content: '看过了。' } }] }),
-      sse({ choices: [{ delta: { server_tool_calls: [
-        { index: 0, calls: [{ index: 0, type: 'deepseek_read_url', kind: 'read_link',
-          action: { type: 'read_link', url: 'https://b.com/p' },
-          status: 'completed', page: { url: 'https://b.com/p', title: 'B 的文章' } }] }
-      ] }, finish_reason: 'stop' }] }),
+      sse({
+        choices: [
+          {
+            delta: {
+              server_tool_calls: [
+                {
+                  index: 0,
+                  calls: [
+                    {
+                      index: 0,
+                      type: 'deepseek_read_url',
+                      kind: 'read_link',
+                      action: { type: 'read_link', url: 'https://b.com/p' },
+                      status: 'completed',
+                      page: { url: 'https://b.com/p', title: 'B 的文章' }
+                    }
+                  ]
+                }
+              ]
+            },
+            finish_reason: 'stop'
+          }
+        ]
+      }),
       'data: [DONE]\n\n'
     ]);
   });
   try {
     const r = await app.streamChat({
-      apiKey: 'k', model: 'deepseek-flash', endpoint: url, web: true,
+      apiKey: 'k',
+      model: 'deepseek-flash',
+      endpoint: url,
+      web: true,
       messages: [{ role: 'user', content: '总结 https://b.com/p' }]
     });
     assert.equal(r.searched, true);
     assert.equal(r.citations[0].url, 'https://b.com/p');
     assert.equal(r.citations[0].title, 'B 的文章');
-  } finally { srv.close(); }
+  } finally {
+    srv.close();
+  }
 });
 
 await okAsync('未开启联网时不声明 tools', async () => {
@@ -741,9 +886,16 @@ await okAsync('未开启联网时不声明 tools', async () => {
     streamOK(res, [sse({ choices: [{ delta: { content: 'x' } }] }), 'data: [DONE]\n\n']);
   });
   try {
-    await app.streamChat({ apiKey: 'k', model: 'deepseek-flash', endpoint: url, messages: [{ role: 'user', content: 'x' }] });
+    await app.streamChat({
+      apiKey: 'k',
+      model: 'deepseek-flash',
+      endpoint: url,
+      messages: [{ role: 'user', content: 'x' }]
+    });
     assert.equal(seen.tools, undefined, '不该带 tools');
-  } finally { srv.close(); }
+  } finally {
+    srv.close();
+  }
 });
 
 await okAsync('空回答 → 抛 EMPTY', async () => {

@@ -404,7 +404,10 @@
 
   function apiError(status, detail) {
     // 输入被内容安全策略拦截（文档：400 Content Exists Risk）
-    if (status === 400 && /content exists risk|content_filter|content moderation/i.test(String(detail || ''))) {
+    if (
+      status === 400 &&
+      /content exists risk|content_filter|content moderation/i.test(String(detail || ''))
+    ) {
       var blocked = new Error('这条内容被安全策略拦截了，换个说法或换个角度试试');
       blocked.status = status;
       blocked.detail = detail || '';
@@ -514,7 +517,13 @@
       if (d.annotations && d.annotations.length) {
         d.annotations.forEach(function (a) {
           var c = a && a.url_citation;
-          if (c && c.url && !citations.some(function (x) { return x.url === c.url; })) {
+          if (
+            c &&
+            c.url &&
+            !citations.some(function (x) {
+              return x.url === c.url;
+            })
+          ) {
             citations.push({ url: c.url, title: c.title || c.url });
           }
         });
@@ -523,12 +532,21 @@
       if (d.server_tool_calls && d.server_tool_calls.length) {
         d.server_tool_calls.forEach(function (step) {
           (step.calls || []).forEach(function (call) {
-            if (call && (call.kind === 'search' || call.kind === 'deep_search' || call.kind === 'read_link')) {
+            if (
+              call &&
+              (call.kind === 'search' || call.kind === 'deep_search' || call.kind === 'read_link')
+            ) {
               searched = true;
             }
             // read_link 的来源也计入
-            if (call && call.page && call.page.url &&
-                !citations.some(function (x) { return x.url === call.page.url; })) {
+            if (
+              call &&
+              call.page &&
+              call.page.url &&
+              !citations.some(function (x) {
+                return x.url === call.page.url;
+              })
+            ) {
               citations.push({ url: call.page.url, title: call.page.title || call.page.url });
             }
           });
@@ -610,7 +628,13 @@
         e2.code = 'EMPTY';
         throw e2;
       }
-      return { content: content, reasoning: reasoning, usage: usage, citations: citations, searched: searched };
+      return {
+        content: content,
+        reasoning: reasoning,
+        usage: usage,
+        citations: citations,
+        searched: searched
+      };
     }
   }
 
@@ -755,6 +779,15 @@
     return n;
   }
 
+  // 旧数据迁移：角色设定原本是全局的，升级时给每个对话各存一份，
+  // 之后互不影响；显式写过的（包括空串）保持不动。
+  function adoptConvSystem(convs, fallback) {
+    (convs || []).forEach(function (c) {
+      if (c && typeof c.system !== 'string') c.system = fallback || '';
+    });
+    return convs;
+  }
+
   function buildApiMessages(conv, settings, keepTurns, budget) {
     var raw = [];
     for (var i = 0; i < conv.messages.length; i++) {
@@ -783,7 +816,8 @@
     }
     while (all.length && all[0].role !== 'user') all.shift();
 
-    var sys = (settings.system || '').trim();
+    // 角色设定跟着对话走；只有旧数据没这个字段时才回落全局默认值
+    var sys = typeof conv.system === 'string' ? conv.system.trim() : (settings.system || '').trim();
     var mem = conv.memory && conv.memory.text ? String(conv.memory.text).trim() : '';
     var sysParts = [];
     // 每次请求现算，保证时间永远是最新的
@@ -792,8 +826,12 @@
     );
     var g = settings.geo;
     if (g && g.on && g.city) {
-      sysParts.push('【用户位置】' + g.city + (g.district && g.district !== g.city ? ' ' + g.district : '') +
-        '\n聊到本地话题（天气、出行、附近的东西）时可以直接参考这个位置。');
+      sysParts.push(
+        '【用户位置】' +
+          g.city +
+          (g.district && g.district !== g.city ? ' ' + g.district : '') +
+          '\n聊到本地话题（天气、出行、附近的东西）时可以直接参考这个位置。'
+      );
     }
     if (sys) sysParts.push(sys);
     if (mem) {
@@ -844,6 +882,7 @@
     stripForSpeech: stripForSpeech,
     nowLine: nowLine,
     normalizeKeepTurns: normalizeKeepTurns,
+    adoptConvSystem: adoptConvSystem,
     buildApiMessages: buildApiMessages,
     apiError: apiError
   };
@@ -944,6 +983,7 @@
               var st0 = freshState();
               st0.settings = Object.assign(defaultSettings(), sh.settings || {});
               st0.convs = sh.convs;
+              adoptConvSystem(st0.convs, st0.settings.system);
               st0.currentId = sh.currentId || (sh.convs[0] && sh.convs[0].id) || null;
               return st0;
             }
@@ -966,6 +1006,7 @@
       st.convs = (Array.isArray(s.convs) ? s.convs : []).filter(function (c) {
         return c && c.id && Array.isArray(c.messages);
       });
+      adoptConvSystem(st.convs, st.settings.system);
       st.settings.model = LEGACY_MODEL[st.settings.model] || st.settings.model;
       if (
         !MODELS.some(function (m) {
@@ -1716,13 +1757,27 @@
     h += '<div class="md">' + inner + '</div>';
 
     if (m.citations && m.citations.length) {
-      h += '<div class="sources"><div class="sh">来源</div>' +
-        m.citations.map(function (c) {
-          var host = '';
-          try { host = new URL(c.url).hostname.replace(/^www\./, ''); } catch (e) { host = ''; }
-          return '<a href="' + esc(c.url) + '" target="_blank" rel="noopener noreferrer">' +
-            esc(c.title) + (host ? '<span class="host">' + esc(host) + '</span>' : '') + '</a>';
-        }).join('') + '</div>';
+      h +=
+        '<div class="sources"><div class="sh">来源</div>' +
+        m.citations
+          .map(function (c) {
+            var host = '';
+            try {
+              host = new URL(c.url).hostname.replace(/^www\./, '');
+            } catch (e) {
+              host = '';
+            }
+            return (
+              '<a href="' +
+              esc(c.url) +
+              '" target="_blank" rel="noopener noreferrer">' +
+              esc(c.title) +
+              (host ? '<span class="host">' + esc(host) + '</span>' : '') +
+              '</a>'
+            );
+          })
+          .join('') +
+        '</div>';
     }
     if (m.error) {
       h +=
@@ -1976,7 +2031,14 @@
   function ensureConv() {
     var c = currentConv();
     if (c) return c;
-    c = { id: uid(), title: '新对话', createdAt: Date.now(), updatedAt: Date.now(), messages: [] };
+    c = {
+      id: uid(),
+      title: '新对话',
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      messages: [],
+      system: state.settings.system || ''
+    };
     state.convs.unshift(c);
     state.currentId = c.id;
     return c;
@@ -2003,7 +2065,9 @@
       title: '新对话',
       createdAt: Date.now(),
       updatedAt: Date.now(),
-      messages: []
+      messages: [],
+      // 快照当前对话的角色设定：新对话接着当前角色聊，但之后各改各的
+      system: cur && typeof cur.system === 'string' ? cur.system : state.settings.system || ''
     };
     state.convs.unshift(c);
     state.currentId = c.id;
@@ -2143,8 +2207,10 @@
 
     var apiMessages = buildApiMessages(conv, s, keepOverride || s.keepTurns, CONTEXT_BUDGET);
     if (!apiMessages.length) return;
-    var hasSys = !!(s.system || '').trim();
-    var sentCount = apiMessages.length - (hasSys ? 1 : 0);
+    // 系统消息（时间/位置/角色/记忆）不占对话条数，按实际发出去的对话消息算
+    var sentCount = apiMessages.filter(function (m) {
+      return m.role !== 'system';
+    }).length;
     conv.trimmed = Math.max(0, countableMessages(conv) - sentCount);
 
     var useWeb = !!state.settings.webSearch;
@@ -2156,8 +2222,12 @@
       toast('联网搜索需要 V4.1 Flash，已自动切换');
     }
     var msg = {
-      role: 'assistant', content: '', reasoning: '', ts: Date.now(),
-      streaming: true, web: useWeb
+      role: 'assistant',
+      content: '',
+      reasoning: '',
+      ts: Date.now(),
+      streaming: true,
+      web: useWeb
     };
     conv.messages.push(msg);
     var idx = conv.messages.length - 1;
@@ -2295,9 +2365,10 @@
 
   function openSettings() {
     var s = state.settings;
-    $('#inpKey').value = s.apiKey || '';
-    $('#inpSystem').value = s.system || '';
     var c0 = currentConv();
+    $('#inpKey').value = s.apiKey || '';
+    $('#inpSystem').value = c0 && typeof c0.system === 'string' ? c0.system : s.system || '';
+    syncSysNote(c0);
     $('#inpMemory').value = (c0 && c0.memory && c0.memory.text) || '';
     updateMemNote(c0);
     $('#inpTemp').value = s.temperature;
@@ -2374,6 +2445,17 @@
     }
     var rf = document.getElementById('rateField');
     if (rf) rf.style.display = deep ? 'none' : '';
+  }
+
+  function syncSysNote(conv) {
+    var label = document.getElementById('sysLabel');
+    var note = document.getElementById('sysNote');
+    if (label) label.textContent = conv ? '本对话的角色设定' : '新对话的默认设定';
+    if (note) {
+      note.textContent = conv
+        ? '只对当前对话生效；新建对话会继承这段设定，之后各改各的，互不影响。'
+        : '会作为之后新建对话的初始设定。';
+    }
   }
 
   function updateMemNote(conv) {
@@ -2602,7 +2684,11 @@
       keyEye.textContent = show ? '隐藏' : '显示';
     });
     $('#inpSystem').addEventListener('input', function () {
-      state.settings.system = $('#inpSystem').value;
+      var v = $('#inpSystem').value;
+      var c = currentConv();
+      // 有对话就写进这个对话；没有对话时改的是「新对话的默认设定」
+      if (c) c.system = v;
+      else state.settings.system = v;
       save();
     });
     $('#inpTemp').addEventListener('input', function () {
@@ -2902,9 +2988,19 @@
         n.textContent = '点一下获取大致位置。只保留城市级别，不保存精确坐标。';
       } else {
         var d = new Date(g.at || Date.now());
-        var p2 = function (x) { return ('0' + x).slice(-2); };
-        n.textContent = '更新于 ' + (d.getMonth() + 1) + '/' + d.getDate() + ' ' +
-          p2(d.getHours()) + ':' + p2(d.getMinutes()) + ' · 仅城市级别，不发送精确坐标';
+        var p2 = function (x) {
+          return ('0' + x).slice(-2);
+        };
+        n.textContent =
+          '更新于 ' +
+          (d.getMonth() + 1) +
+          '/' +
+          d.getDate() +
+          ' ' +
+          p2(d.getHours()) +
+          ':' +
+          p2(d.getMinutes()) +
+          ' · 仅城市级别，不发送精确坐标';
       }
     }
     var seg = document.querySelectorAll('#segGeo button');
@@ -2919,8 +3015,14 @@
       var v = document.getElementById('geoVal');
       if (v) v.textContent = txt;
     };
-    if (!navigator.geolocation) { toast('这个浏览器不支持定位'); return; }
-    if (!window.isSecureContext) { toast('定位需要 HTTPS 页面'); return; }
+    if (!navigator.geolocation) {
+      toast('这个浏览器不支持定位');
+      return;
+    }
+    if (!window.isSecureContext) {
+      toast('定位需要 HTTPS 页面');
+      return;
+    }
     set('定位中…');
     navigator.geolocation.getCurrentPosition(
       function (pos) {
@@ -2932,9 +3034,16 @@
           syncGeoUI();
           toast(city ? '位置已更新：' + city : '位置已更新');
         };
-        fetch('https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=' +
-          lat + '&longitude=' + lon + '&localityLanguage=zh')
-          .then(function (r) { return r.ok ? r.json() : null; })
+        fetch(
+          'https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=' +
+            lat +
+            '&longitude=' +
+            lon +
+            '&localityLanguage=zh'
+        )
+          .then(function (r) {
+            return r.ok ? r.json() : null;
+          })
           .then(function (j) {
             if (j && (j.city || j.locality || j.principalSubdivision)) {
               done(j.city || j.locality || j.principalSubdivision, j.locality || '');
@@ -2942,7 +3051,9 @@
               done('约 ' + lat + ', ' + lon, '');
             }
           })
-          .catch(function () { done('约 ' + lat + ', ' + lon, ''); });
+          .catch(function () {
+            done('约 ' + lat + ', ' + lon, '');
+          });
       },
       function (err) {
         set(prev);
@@ -3003,9 +3114,10 @@
       json = JSON.stringify(state);
     } catch (e) {}
     var bytes = json ? new Blob([json]).size : 0;
-    var sizeText = bytes < 1024 * 1024
-      ? (bytes / 1024).toFixed(bytes < 10240 ? 1 : 0) + ' KB'
-      : (bytes / 1024 / 1024).toFixed(2) + ' MB';
+    var sizeText =
+      bytes < 1024 * 1024
+        ? (bytes / 1024).toFixed(bytes < 10240 ? 1 : 0) + ' KB'
+        : (bytes / 1024 / 1024).toFixed(2) + ' MB';
     var tight = bytes > 3.5 * 1024 * 1024;
     var le = state.settings.lastExportAt;
     var exportTxt = le
@@ -3054,9 +3166,15 @@
 
   function probeServer() {
     return fetch('/api/health')
-      .then(function (r) { return r.ok ? r.json() : null; })
-      .then(function (j) { return !!(j && j.ok); })
-      .catch(function () { return false; })
+      .then(function (r) {
+        return r.ok ? r.json() : null;
+      })
+      .then(function (j) {
+        return !!(j && j.ok);
+      })
+      .catch(function () {
+        return false;
+      })
       .then(function (ok) {
         ui.serverMode = ok;
         var rb = document.getElementById('btnRestore');
@@ -3140,6 +3258,8 @@
     if (ui.streaming) throw new Error('请先停止当前生成');
     var convs = (data && data.convs) || [];
     if (!convs.length) throw new Error('备份里没有对话');
+    // 老备份只有全局 system：导入时给每个对话落一份独立副本
+    adoptConvSystem(convs, (data.settings && data.settings.system) || '');
     var added = 0,
       replaced = 0;
     var byId = {};
@@ -3327,6 +3447,7 @@
         var j = JSON.parse(String(fr.result));
         var convs = Array.isArray(j.convs) ? j.convs : Array.isArray(j) ? j : null;
         if (!convs) throw new Error('格式不正确');
+        adoptConvSystem(convs, (j.settings && j.settings.system) || '');
         var added = 0;
         convs.forEach(function (c) {
           if (!c || !Array.isArray(c.messages)) return;
@@ -3361,7 +3482,13 @@
     bind();
     // 禁止双指缩放（iOS Safari 会忽略 viewport 的 user-scalable，这里再兜一层）
     ['gesturestart', 'gesturechange', 'gestureend'].forEach(function (ev) {
-      document.addEventListener(ev, function (e) { e.preventDefault(); }, { passive: false });
+      document.addEventListener(
+        ev,
+        function (e) {
+          e.preventDefault();
+        },
+        { passive: false }
+      );
     });
 
     // 环境不支持语音（非 HTTPS 或无识别接口）时，不显示麦克风，避免留下死按钮

@@ -157,9 +157,9 @@
       <div class="glabel">行为</div>
       <div class="card">
         <div class="field">
-          <label for="inpSystem">系统提示词</label>
-          <textarea class="inp" id="inpSystem" placeholder="例如：你是一个简洁的中文助手，回答不超过三句话。"></textarea>
-          <div class="desc">作为每次请求的第一条消息发送，用来设定角色和回答风格。</div>
+          <label for="inpSystem" id="sysLabel">本对话的角色设定</label>
+          <textarea class="inp" id="inpSystem" placeholder="例如：你是一位说话直接、偶尔调侃的朋友，不喜欢客套。"></textarea>
+          <div class="desc" id="sysNote">只对当前对话生效；新建对话会继承这段设定，之后各改各的，互不影响。</div>
         </div>
 
         <div class="field">
@@ -282,7 +282,7 @@
       </div>
     </div>
 
-    <div class="ver">DeepSeek Chat v3.2 · 对话仅保存在本机</div>
+    <div class="ver">DeepSeek Chat v3.3 · 对话仅保存在本机</div>
   </div>
 </section>
 
