@@ -159,7 +159,19 @@
         <div class="field">
           <label for="inpSystem" id="sysLabel">本对话的角色设定</label>
           <textarea class="inp" id="inpSystem" placeholder="例如：你是一位说话直接、偶尔调侃的朋友，不喜欢客套。"></textarea>
-          <div class="desc" id="sysNote">只对当前对话生效；新建对话会继承这段设定，之后各改各的，互不影响。</div>
+          <div class="desc" id="sysNote">这段决定它是谁。只对当前对话生效；新建对话会继承，之后各改各的。</div>
+        </div>
+
+        <div class="field">
+          <label for="inpUserPersona" id="userLabel">我的人设</label>
+          <textarea class="inp" id="inpUserPersona" placeholder="例如：我叫小林，28 岁，做后端；说话直接，不喜欢客套。"></textarea>
+          <div class="desc" id="userNote">告诉它你是谁：称呼、年龄、职业、性格、偏好。只对当前对话生效。</div>
+        </div>
+
+        <div class="field">
+          <label for="inpRelationship" id="relationLabel">我们的关系</label>
+          <textarea class="inp" id="inpRelationship" placeholder="例如：认识十年的老朋友，可以互相吐槽；或者：刚认识，保持礼貌。"></textarea>
+          <div class="desc" id="relationNote">你们之间的关系，比如「认识十年的朋友」「刚认识」「恋人」。只对当前对话生效。</div>
         </div>
 
         <div class="field">
@@ -282,7 +294,7 @@
       </div>
     </div>
 
-    <div class="ver">DeepSeek Chat v3.3 · 对话仅保存在本机</div>
+    <div class="ver">DeepSeek Chat v3.4 · 对话仅保存在本机</div>
   </div>
 </section>
 

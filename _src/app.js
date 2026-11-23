@@ -779,11 +779,15 @@
     return n;
   }
 
-  // 旧数据迁移：角色设定原本是全局的，升级时给每个对话各存一份，
+  // 旧数据迁移：角色设定 / 用户人设 / 关系原本是全局的，升级时给每个对话各存一份，
   // 之后互不影响；显式写过的（包括空串）保持不动。
-  function adoptConvSystem(convs, fallback) {
+  function adoptConvProfile(convs, defaults) {
+    var d = defaults || {};
     (convs || []).forEach(function (c) {
-      if (c && typeof c.system !== 'string') c.system = fallback || '';
+      if (!c) return;
+      if (typeof c.system !== 'string') c.system = d.system || '';
+      if (typeof c.userPersona !== 'string') c.userPersona = d.userPersona || '';
+      if (typeof c.relationship !== 'string') c.relationship = d.relationship || '';
     });
     return convs;
   }
@@ -816,8 +820,16 @@
     }
     while (all.length && all[0].role !== 'user') all.shift();
 
-    // 角色设定跟着对话走；只有旧数据没这个字段时才回落全局默认值
+    // 角色、用户人设、关系都跟着对话走；旧数据没字段时才回落全局默认值
     var sys = typeof conv.system === 'string' ? conv.system.trim() : (settings.system || '').trim();
+    var aboutUser =
+      typeof conv.userPersona === 'string'
+        ? conv.userPersona.trim()
+        : (settings.userPersona || '').trim();
+    var relation =
+      typeof conv.relationship === 'string'
+        ? conv.relationship.trim()
+        : (settings.relationship || '').trim();
     var mem = conv.memory && conv.memory.text ? String(conv.memory.text).trim() : '';
     var sysParts = [];
     // 每次请求现算，保证时间永远是最新的
@@ -834,6 +846,21 @@
       );
     }
     if (sys) sysParts.push(sys);
+    if (aboutUser) {
+      sysParts.push(
+        '【用户人设】\n' +
+          aboutUser +
+          '\n以上是用户对自己的设定。把它当作你对用户的了解，自然地用在对话里，' +
+          '不要逐条复述，也不要反问确认。'
+      );
+    }
+    if (relation) {
+      sysParts.push(
+        '【你和用户的关系】\n用户设定你们的关系是：' +
+          relation +
+          '\n按这个关系相处；不要自称 AI 助手，也不要重新自我介绍。'
+      );
+    }
     if (mem) {
       sysParts.push(
         '【你和这位用户的过往 · 这是你自己的记忆】\n' +
@@ -882,7 +909,7 @@
     stripForSpeech: stripForSpeech,
     nowLine: nowLine,
     normalizeKeepTurns: normalizeKeepTurns,
-    adoptConvSystem: adoptConvSystem,
+    adoptConvProfile: adoptConvProfile,
     buildApiMessages: buildApiMessages,
     apiError: apiError
   };
@@ -953,6 +980,8 @@
       apiKey: '',
       model: 'deepseek-flash',
       system: '',
+      userPersona: '',
+      relationship: '',
       temperature: 1.0,
       keepTurns: 60,
       theme: 'auto',
@@ -983,7 +1012,7 @@
               var st0 = freshState();
               st0.settings = Object.assign(defaultSettings(), sh.settings || {});
               st0.convs = sh.convs;
-              adoptConvSystem(st0.convs, st0.settings.system);
+              adoptConvProfile(st0.convs, st0.settings);
               st0.currentId = sh.currentId || (sh.convs[0] && sh.convs[0].id) || null;
               return st0;
             }
@@ -1006,7 +1035,7 @@
       st.convs = (Array.isArray(s.convs) ? s.convs : []).filter(function (c) {
         return c && c.id && Array.isArray(c.messages);
       });
-      adoptConvSystem(st.convs, st.settings.system);
+      adoptConvProfile(st.convs, st.settings);
       st.settings.model = LEGACY_MODEL[st.settings.model] || st.settings.model;
       if (
         !MODELS.some(function (m) {
@@ -2037,7 +2066,9 @@
       createdAt: Date.now(),
       updatedAt: Date.now(),
       messages: [],
-      system: state.settings.system || ''
+      system: state.settings.system || '',
+      userPersona: state.settings.userPersona || '',
+      relationship: state.settings.relationship || ''
     };
     state.convs.unshift(c);
     state.currentId = c.id;
@@ -2368,7 +2399,11 @@
     var c0 = currentConv();
     $('#inpKey').value = s.apiKey || '';
     $('#inpSystem').value = c0 && typeof c0.system === 'string' ? c0.system : s.system || '';
-    syncSysNote(c0);
+    $('#inpUserPersona').value =
+      c0 && typeof c0.userPersona === 'string' ? c0.userPersona : s.userPersona || '';
+    $('#inpRelationship').value =
+      c0 && typeof c0.relationship === 'string' ? c0.relationship : s.relationship || '';
+    syncPersonaUI(c0);
     $('#inpMemory').value = (c0 && c0.memory && c0.memory.text) || '';
     updateMemNote(c0);
     $('#inpTemp').value = s.temperature;
@@ -2447,15 +2482,27 @@
     if (rf) rf.style.display = deep ? 'none' : '';
   }
 
-  function syncSysNote(conv) {
-    var label = document.getElementById('sysLabel');
-    var note = document.getElementById('sysNote');
-    if (label) label.textContent = conv ? '本对话的角色设定' : '新对话的默认设定';
-    if (note) {
-      note.textContent = conv
-        ? '只对当前对话生效；新建对话会继承这段设定，之后各改各的，互不影响。'
-        : '会作为之后新建对话的初始设定。';
-    }
+  function syncPersonaUI(conv) {
+    var labels = [
+      ['sysLabel', conv ? '本对话的角色设定' : '新对话的默认设定'],
+      ['userLabel', conv ? '我的人设' : '新对话的默认用户人设'],
+      ['relationLabel', conv ? '我们的关系' : '新对话的默认关系']
+    ];
+    labels.forEach(function (x) {
+      var el = document.getElementById(x[0]);
+      if (el) el.textContent = x[1];
+    });
+    var notes = [
+      ['sysNote', '这段决定它是谁。只对当前对话生效；新建对话会继承，之后各改各的。'],
+      ['userNote', '告诉它你是谁：称呼、年龄、职业、性格、偏好。只对当前对话生效。'],
+      ['relationNote', '你们之间的关系，比如「认识十年的朋友」「刚认识」「恋人」。只对当前对话生效。']
+    ];
+    notes.forEach(function (x) {
+      var el = document.getElementById(x[0]);
+      if (el) {
+        el.textContent = conv ? x[1] : '会作为之后新建对话的初始设定。';
+      }
+    });
   }
 
   function updateMemNote(conv) {
@@ -2689,6 +2736,20 @@
       // 有对话就写进这个对话；没有对话时改的是「新对话的默认设定」
       if (c) c.system = v;
       else state.settings.system = v;
+      save();
+    });
+    $('#inpUserPersona').addEventListener('input', function () {
+      var v = $('#inpUserPersona').value;
+      var c = currentConv();
+      if (c) c.userPersona = v;
+      else state.settings.userPersona = v;
+      save();
+    });
+    $('#inpRelationship').addEventListener('input', function () {
+      var v = $('#inpRelationship').value;
+      var c = currentConv();
+      if (c) c.relationship = v;
+      else state.settings.relationship = v;
       save();
     });
     $('#inpTemp').addEventListener('input', function () {
@@ -2957,6 +3018,8 @@
       settings: {
         model: s.model,
         system: s.system,
+        userPersona: s.userPersona,
+        relationship: s.relationship,
         temperature: s.temperature,
         keepTurns: s.keepTurns,
         theme: s.theme,
@@ -3259,7 +3322,7 @@
     var convs = (data && data.convs) || [];
     if (!convs.length) throw new Error('备份里没有对话');
     // 老备份只有全局 system：导入时给每个对话落一份独立副本
-    adoptConvSystem(convs, (data.settings && data.settings.system) || '');
+    adoptConvProfile(convs, data.settings || {});
     var added = 0,
       replaced = 0;
     var byId = {};
@@ -3425,6 +3488,8 @@
       settings: {
         model: state.settings.model,
         system: state.settings.system,
+        userPersona: state.settings.userPersona,
+        relationship: state.settings.relationship,
         temperature: state.settings.temperature,
         keepTurns: state.settings.keepTurns,
         theme: state.settings.theme,
@@ -3447,7 +3512,7 @@
         var j = JSON.parse(String(fr.result));
         var convs = Array.isArray(j.convs) ? j.convs : Array.isArray(j) ? j : null;
         if (!convs) throw new Error('格式不正确');
-        adoptConvSystem(convs, (j.settings && j.settings.system) || '');
+        adoptConvProfile(convs, j.settings || {});
         var added = 0;
         convs.forEach(function (c) {
           if (!c || !Array.isArray(c.messages)) return;

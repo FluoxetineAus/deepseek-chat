@@ -325,20 +325,62 @@ ok('每个对话的角色设定互相独立', () => {
 
 ok('旧对话没有独立设定时回落全局（迁移前兜底）', () => {
   const conv = { messages: [{ role: 'user', content: 'hi', ts: 1 }] };
-  const msgs = app.buildApiMessages(conv, { system: '旧全局设定' }, 0, 999999);
+  const msgs = app.buildApiMessages(
+    conv,
+    { system: '旧全局设定', userPersona: '旧用户人设', relationship: '旧关系' },
+    0,
+    999999
+  );
   assert.ok(msgs[0].content.includes('旧全局设定'));
+  assert.ok(msgs[0].content.includes('旧用户人设'));
+  assert.ok(msgs[0].content.includes('旧关系'));
+});
+
+ok('用户人设与关系按对话独立注入', () => {
+  const a = {
+    system: '你是猫娘',
+    userPersona: '我是小林，28 岁，做后端',
+    relationship: '认识十年的老朋友',
+    messages: [{ role: 'user', content: 'hi', ts: 1 }]
+  };
+  const b = {
+    system: '你是老师',
+    userPersona: '我是大一新生',
+    relationship: '师生关系',
+    messages: [{ role: 'user', content: 'hi', ts: 1 }]
+  };
+  const ma = app.buildApiMessages(a, {}, 0, 999999)[0].content;
+  const mb = app.buildApiMessages(b, {}, 0, 999999)[0].content;
+  assert.ok(ma.includes('【用户人设】\n我是小林'), 'A 注入自己的用户人设');
+  assert.ok(ma.includes('【你和用户的关系】\n用户设定你们的关系是：认识十年的老朋友'), 'A 注入自己的关系');
+  assert.ok(!ma.includes('大一新生') && !ma.includes('师生关系'), 'A 不带 B 的设定');
+  assert.ok(mb.includes('我是大一新生') && mb.includes('师生关系'), 'B 注入自己的设定');
+  assert.ok(!mb.includes('小林'), 'B 不带 A 的设定');
+  a.userPersona = '';
+  a.relationship = '';
+  const ma2 = app.buildApiMessages(a, {}, 0, 999999)[0].content;
+  assert.ok(!ma2.includes('【用户人设】') && !ma2.includes('【你和用户的关系】'), '清空后不再注入');
+  assert.ok(app.buildApiMessages(b, {}, 0, 999999)[0].content.includes('大一新生'), '改 A 不影响 B');
 });
 
 ok('旧数据迁移：给每个对话写入独立副本', () => {
   const convs = [
     { id: 'a', messages: [] },
-    { id: 'b', messages: [], system: '自己的' },
-    { id: 'c', messages: [], system: '' }
+    { id: 'b', messages: [], system: '自己的', userPersona: '我的', relationship: '朋友' },
+    { id: 'c', messages: [], system: '', userPersona: '', relationship: '' }
   ];
-  app.adoptConvSystem(convs, '旧全局');
+  app.adoptConvProfile(convs, {
+    system: '旧全局',
+    userPersona: '旧用户',
+    relationship: '旧关系'
+  });
   assert.equal(convs[0].system, '旧全局', '没有的补上');
+  assert.equal(convs[0].userPersona, '旧用户', '用户人设补上');
+  assert.equal(convs[0].relationship, '旧关系', '关系补上');
   assert.equal(convs[1].system, '自己的', '已有的不覆盖');
+  assert.equal(convs[1].userPersona, '我的', '已有用户人设不覆盖');
   assert.equal(convs[2].system, '', '显式空串不覆盖');
+  assert.equal(convs[2].relationship, '', '显式空关系不覆盖');
 });
 
 ok('上下文保留图片块', () => {
