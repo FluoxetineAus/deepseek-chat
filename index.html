@@ -1401,6 +1401,11 @@ html[data-resolved='light'] .logo {
   line-height: 1.5;
 }
 
+.inp:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .inp {
   width: 100%;
   background: var(--glass-3);
@@ -2411,7 +2416,7 @@ body.dragging .drop {
         <div class="field">
           <label for="inpSystem" id="sysLabel">本对话的角色设定</label>
           <textarea class="inp" id="inpSystem" placeholder="例如：你是一位说话直接、偶尔调侃的朋友，不喜欢客套。"></textarea>
-          <div class="desc" id="sysNote">这段决定它是谁。只对当前对话生效；新建对话会继承，之后各改各的。</div>
+          <div class="desc" id="sysNote">这段决定它是谁。只对当前对话生效；新建对话默认为空，不会继承。</div>
         </div>
 
         <div class="field">
@@ -2550,7 +2555,7 @@ body.dragging .drop {
     </div>
     </div>
 
-    <div class="ver">DeepSeek Chat v3.5 · 对话仅保存在本机</div>
+    <div class="ver">DeepSeek Chat v3.6 · 对话仅保存在本机</div>
   </div>
 </section>
 
@@ -3383,16 +3388,10 @@ body.dragging .drop {
     }
     while (all.length && all[0].role !== 'user') all.shift();
 
-    // 角色、用户人设、关系都跟着对话走；旧数据没字段时才回落全局默认值
-    var sys = typeof conv.system === 'string' ? conv.system.trim() : (settings.system || '').trim();
-    var aboutUser =
-      typeof conv.userPersona === 'string'
-        ? conv.userPersona.trim()
-        : (settings.userPersona || '').trim();
-    var relation =
-      typeof conv.relationship === 'string'
-        ? conv.relationship.trim()
-        : (settings.relationship || '').trim();
+    // 三项设定只认当前对话，不再回落到全局默认值（避免跨对话串味）
+    var sys = (conv.system || '').trim();
+    var aboutUser = (conv.userPersona || '').trim();
+    var relation = (conv.relationship || '').trim();
     var mem = conv.memory && conv.memory.text ? String(conv.memory.text).trim() : '';
     var sysParts = [];
     // 每次请求现算，保证时间永远是最新的
@@ -4640,9 +4639,9 @@ body.dragging .drop {
       createdAt: Date.now(),
       updatedAt: Date.now(),
       messages: [],
-      system: state.settings.system || '',
-      userPersona: state.settings.userPersona || '',
-      relationship: state.settings.relationship || ''
+      system: '',
+      userPersona: '',
+      relationship: ''
     };
     state.convs.unshift(c);
     state.currentId = c.id;
@@ -4661,7 +4660,13 @@ body.dragging .drop {
     stopSpeech();
     clearPending();
     var cur = currentConv();
-    if (cur && cur.messages.length === 0) {
+    var curHasProfile =
+      cur &&
+      ((cur.system || '').trim() ||
+        (cur.userPersona || '').trim() ||
+        (cur.relationship || '').trim());
+    // 空白且没设过任何角色信息的对话不重复新建；设过人设的空对话允许再开一个
+    if (cur && cur.messages.length === 0 && !curHasProfile) {
       closeDrawer();
       return cur;
     }
@@ -4671,8 +4676,10 @@ body.dragging .drop {
       createdAt: Date.now(),
       updatedAt: Date.now(),
       messages: [],
-      // 快照当前对话的角色设定：新对话接着当前角色聊，但之后各改各的
-      system: cur && typeof cur.system === 'string' ? cur.system : state.settings.system || ''
+      // 新对话从空白开始：三项设定都不继承，避免跨对话串味
+      system: '',
+      userPersona: '',
+      relationship: ''
     };
     state.convs.unshift(c);
     state.currentId = c.id;
@@ -4979,11 +4986,11 @@ body.dragging .drop {
     var s = state.settings;
     var c0 = currentConv();
     $('#inpKey').value = s.apiKey || '';
-    $('#inpSystem').value = c0 && typeof c0.system === 'string' ? c0.system : s.system || '';
+    $('#inpSystem').value = c0 && typeof c0.system === 'string' ? c0.system : '';
     $('#inpUserPersona').value =
-      c0 && typeof c0.userPersona === 'string' ? c0.userPersona : s.userPersona || '';
+      c0 && typeof c0.userPersona === 'string' ? c0.userPersona : '';
     $('#inpRelationship').value =
-      c0 && typeof c0.relationship === 'string' ? c0.relationship : s.relationship || '';
+      c0 && typeof c0.relationship === 'string' ? c0.relationship : '';
     syncPersonaUI(c0);
     $('#inpMemory').value = (c0 && c0.memory && c0.memory.text) || '';
     updateMemNote(c0);
@@ -5065,24 +5072,26 @@ body.dragging .drop {
 
   function syncPersonaUI(conv) {
     var labels = [
-      ['sysLabel', conv ? '本对话的角色设定' : '新对话的默认设定'],
-      ['userLabel', conv ? '我的人设' : '新对话的默认用户人设'],
-      ['relationLabel', conv ? '我们的关系' : '新对话的默认关系']
+      ['sysLabel', '本对话的角色设定'],
+      ['userLabel', '我的人设'],
+      ['relationLabel', '我们的关系']
     ];
     labels.forEach(function (x) {
       var el = document.getElementById(x[0]);
       if (el) el.textContent = x[1];
     });
     var notes = [
-      ['sysNote', '这段决定它是谁。只对当前对话生效；新建对话会继承，之后各改各的。'],
+      ['sysNote', '只对当前对话生效；新建对话默认为空，不会继承。'],
       ['userNote', '告诉它你是谁：称呼、年龄、职业、性格、偏好。只对当前对话生效。'],
       ['relationNote', '你们之间的关系，比如「认识十年的朋友」「刚认识」「恋人」。只对当前对话生效。']
     ];
     notes.forEach(function (x) {
       var el = document.getElementById(x[0]);
-      if (el) {
-        el.textContent = conv ? x[1] : '会作为之后新建对话的初始设定。';
-      }
+      if (el) el.textContent = conv ? x[1] : '先新建一个对话，再设置。';
+    });
+    ['inpSystem', 'inpUserPersona', 'inpRelationship'].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) el.disabled = !conv;
     });
   }
 
@@ -5322,23 +5331,19 @@ body.dragging .drop {
     $('#inpSystem').addEventListener('input', function () {
       var v = $('#inpSystem').value;
       var c = currentConv();
-      // 有对话就写进这个对话；没有对话时改的是「新对话的默认设定」
       if (c) c.system = v;
-      else state.settings.system = v;
       save();
     });
     $('#inpUserPersona').addEventListener('input', function () {
       var v = $('#inpUserPersona').value;
       var c = currentConv();
       if (c) c.userPersona = v;
-      else state.settings.userPersona = v;
       save();
     });
     $('#inpRelationship').addEventListener('input', function () {
       var v = $('#inpRelationship').value;
       var c = currentConv();
       if (c) c.relationship = v;
-      else state.settings.relationship = v;
       save();
     });
     $('#inpTemp').addEventListener('input', function () {

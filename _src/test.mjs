@@ -89,8 +89,8 @@ ok('estTokens 同字符数下中文密度高于英文', () => {
 
 ok('每次请求注入当前时间', () => {
   const msgs = app.buildApiMessages(
-    { messages: [{ role: 'user', content: '今天几号', ts: 1 }] },
-    { system: '你是朋友' },
+    { system: '你是朋友', messages: [{ role: 'user', content: '今天几号', ts: 1 }] },
+    {},
     0,
     999999
   );
@@ -291,12 +291,12 @@ ok('无结尾换行的最后一行也会被处理', () => {
 console.log('\n\x1b[1m4. 上下文裁剪\x1b[0m');
 
 ok('保留 system 并限制轮数', () => {
-  const conv = { messages: [] };
+  const conv = { system: '你是助手', messages: [] };
   for (let i = 0; i < 30; i++) {
     conv.messages.push({ role: 'user', content: 'u' + i });
     conv.messages.push({ role: 'assistant', content: 'a' + i });
   }
-  const msgs = app.buildApiMessages(conv, { system: '你是助手' }, 3, 999999);
+  const msgs = app.buildApiMessages(conv, {}, 3, 999999);
   assert.equal(msgs[0].role, 'system');
   assert.ok(msgs[0].content.includes('你是助手'), '自定义 system 保留');
   const body = msgs.filter((m) => m.role !== 'system');
@@ -323,7 +323,7 @@ ok('每个对话的角色设定互相独立', () => {
   assert.ok(app.buildApiMessages(b, {}, 0, 999999)[0].content.includes('老师'), '改 A 不影响 B');
 });
 
-ok('旧对话没有独立设定时回落全局（迁移前兜底）', () => {
+ok('对话没有独立设定时不回落全局（避免跨对话串味）', () => {
   const conv = { messages: [{ role: 'user', content: 'hi', ts: 1 }] };
   const msgs = app.buildApiMessages(
     conv,
@@ -331,9 +331,9 @@ ok('旧对话没有独立设定时回落全局（迁移前兜底）', () => {
     0,
     999999
   );
-  assert.ok(msgs[0].content.includes('旧全局设定'));
-  assert.ok(msgs[0].content.includes('旧用户人设'));
-  assert.ok(msgs[0].content.includes('旧关系'));
+  assert.ok(!msgs[0].content.includes('旧全局设定'), '不回落全局角色');
+  assert.ok(!msgs[0].content.includes('旧用户人设'), '不回落全局用户人设');
+  assert.ok(!msgs[0].content.includes('旧关系'), '不回落全局关系');
 });
 
 ok('用户人设与关系按对话独立注入', () => {
@@ -415,6 +415,7 @@ ok('keepTurns=0：不按轮数裁剪，只受预算约束', () => {
 
 ok('长期记忆注入 system，cutoff 之前的消息不再发送', () => {
   const conv = {
+    system: '你是朋友',
     cutoff: 1000,
     memory: { text: '【用户信息】小林，后端工程师' },
     messages: [
@@ -424,7 +425,7 @@ ok('长期记忆注入 system，cutoff 之前的消息不再发送', () => {
       { role: 'assistant', content: '新回答', ts: 1002 }
     ]
   };
-  const msgs = app.buildApiMessages(conv, { system: '你是朋友' }, 0, 999999);
+  const msgs = app.buildApiMessages(conv, {}, 0, 999999);
   assert.equal(msgs[0].role, 'system');
   assert.ok(msgs[0].content.includes('你是朋友'), '原 system 保留');
   assert.ok(msgs[0].content.includes('这是你自己的记忆'), '明确是自身经历');

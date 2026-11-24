@@ -1384,6 +1384,11 @@ html[data-resolved='light'] .logo {
   line-height: 1.5;
 }
 
+.inp:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .inp {
   width: 100%;
   background: var(--glass-3);
