@@ -1742,7 +1742,7 @@
         esc(shortDate()) +
         '</div>' +
         '<h1>填入 API Key 开始</h1>' +
-        '<p>去 DeepSeek 开放平台创建一个 Key，粘贴进来即可。它只保存在这台手机本地。</p>' +
+        '<p>去 DeepSeek 开放平台创建一个 Key，粘贴进来即可。它只保存在这台设备本地。</p>' +
         '<button class="cta" data-act="settings">填入 API Key</button>' +
         '<p class="fine">还没有账号？<a href="https://platform.deepseek.com/api_keys" target="_blank" rel="noopener">去开放平台创建 →</a></p>' +
         '</div>'
@@ -1757,7 +1757,7 @@
       esc(shortDate()) +
       '</div>' +
       '<h1>今天想聊点什么？</h1>' +
-      '<p>对话只存在这台手机里。直接输入，或从下面挑一个开始。</p>' +
+      '<p>对话只存在这台设备上。直接输入，或从下面挑一个开始。</p>' +
       '<div class="chips">' +
       CHIPS.map(function (c) {
         return (
@@ -3285,7 +3285,7 @@
     var el = document.getElementById('backupNote');
     if (!el) return;
     if (ui.serverMode === false) {
-      el.textContent = '托管模式：数据只存在这台手机上，不会连电脑。请定期用上面的「导出备份」。';
+      el.textContent = '托管模式：数据只存在当前浏览器里，不会上传。请定期用上面的「导出备份」。';
       return;
     }
     if (ui.backupErr) {
