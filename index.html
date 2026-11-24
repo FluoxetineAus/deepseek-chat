@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>DeepSeek 对话</title>
-<meta name="description" content="在 iPhone 上和 DeepSeek 对话的本地网页应用">
+<meta name="description" content="在 iPhone 和电脑浏览器上和 DeepSeek 对话的本地网页应用">
 <meta name="color-scheme" content="dark light">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -2090,6 +2090,181 @@ textarea {
 .conv.starred .t {
   color: var(--text);
 }
+
+/* ============================================================
+   桌面端（≥960px）：常驻会话栏 + 居中聊天列 + 设置弹窗
+   ============================================================ */
+.drop {
+  position: fixed;
+  inset: 14px;
+  z-index: 70;
+  display: none;
+  place-items: center;
+  border: 2px dashed var(--accent-line);
+  border-radius: 20px;
+  background: rgba(8, 14, 30, 0.58);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  pointer-events: none;
+}
+body.dragging .drop {
+  display: grid;
+}
+
+@media (min-width: 960px) {
+  .app {
+    left: 300px;
+    transition: left 0.28s var(--ease);
+  }
+  body.sb-collapsed .app {
+    left: 0;
+  }
+
+  .drawer {
+    width: 300px;
+    z-index: 39;
+    transform: none;
+    box-shadow: none;
+    transition: transform 0.28s var(--ease);
+  }
+  body.sb-collapsed .drawer {
+    transform: translateX(-101%);
+  }
+  .drawer-hd {
+    padding: 22px 18px 12px;
+  }
+  .conv-list {
+    padding: 4px 12px;
+  }
+  .conv {
+    padding: 11px 12px;
+  }
+  .conv:hover {
+    background: var(--glass-2);
+  }
+  .conv .conv-del {
+    opacity: 0;
+  }
+  .conv:hover .conv-del,
+  .conv.on .conv-del {
+    opacity: 1;
+  }
+
+  .bar {
+    height: 58px;
+    padding: 0 20px;
+  }
+  .bar-title {
+    font-size: 15.5px;
+  }
+
+  .chat {
+    padding: 26px 30px 20px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--stroke-2) transparent;
+  }
+  .chat::-webkit-scrollbar {
+    display: block;
+    width: 8px;
+  }
+  .chat::-webkit-scrollbar-thumb {
+    background: var(--stroke-2);
+    border-radius: 99px;
+  }
+  .chat::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .wrap {
+    max-width: 780px;
+  }
+
+  .composer {
+    padding: 10px 30px 18px;
+  }
+  .cmp {
+    max-width: 780px;
+  }
+  #input {
+    max-height: 240px;
+  }
+  .fab {
+    right: max(24px, calc((100% - 780px) / 2 - 48px));
+    bottom: 108px;
+  }
+
+  .sheet {
+    left: 50%;
+    right: auto;
+    top: 50%;
+    bottom: auto;
+    width: min(920px, calc(100vw - 72px));
+    max-height: min(88vh, 900px);
+    overflow: hidden;
+    border-radius: 20px;
+    border: 1px solid var(--stroke-2);
+    padding-bottom: 0;
+    opacity: 0;
+    pointer-events: none;
+    transform: translate(-50%, -46%) scale(0.985);
+    transition:
+      opacity 0.18s,
+      transform 0.22s var(--ease);
+    box-shadow: 0 34px 90px -24px rgba(0, 0, 0, 0.8);
+  }
+  .sheet.on {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  .sheet-hd {
+    padding: 16px 24px;
+  }
+  .sheet-body {
+    min-height: 0;
+    padding: 20px 24px 26px;
+  }
+  .s-cols {
+    display: flex;
+    align-items: flex-start;
+    gap: 0 22px;
+  }
+  .s-col {
+    flex: 1;
+    min-width: 0;
+  }
+  .ver {
+    margin-top: 2px;
+    text-align: center;
+  }
+}
+
+@media (min-width: 960px) and (hover: hover) {
+  .ico:hover,
+  .btn-sm:hover,
+  .btn-ghost:hover,
+  .mini:hover,
+  .done:hover,
+  .snap:hover {
+    background: var(--glass-2);
+  }
+  .ico:hover {
+    color: var(--text);
+  }
+  .send:hover:not(:disabled) {
+    filter: brightness(1.08);
+  }
+  .act:hover {
+    background: var(--glass-2);
+    color: var(--text);
+  }
+  .conv:hover .t {
+    color: var(--text);
+  }
+}
 </style>
 </head>
 <body>
@@ -2163,6 +2338,9 @@ textarea {
     <button class="done" id="closeSettings">完成</button>
   </div>
   <div class="sheet-body">
+
+    <div class="s-cols">
+    <div class="s-col">
 
     <div class="group">
       <div class="glabel">连接</div>
@@ -2289,6 +2467,8 @@ textarea {
         </div>
       </div>
     </div>
+    </div>
+    <div class="s-col">
 
     <div class="group">
       <div class="glabel">位置</div>
@@ -2367,12 +2547,16 @@ textarea {
         <button class="danger" id="btnClearAll">清空全部对话</button>
       </div>
     </div>
+    </div>
+    </div>
 
-    <div class="ver">DeepSeek Chat v3.4 · 对话仅保存在本机</div>
+    <div class="ver">DeepSeek Chat v3.5 · 对话仅保存在本机</div>
   </div>
 </section>
 
 <div class="lightbox" id="lightbox"><img id="lightboxImg" alt=""></div>
+
+<div class="drop" id="drop"><span>松开即可添加图片</span></div>
 
 <div class="toast" id="toast"></div>
 
@@ -3351,6 +3535,8 @@ textarea {
   var saveTimer = 0;
   var toastTimer = 0;
   var themeMQ = window.matchMedia('(prefers-color-scheme: light)');
+  var desktopMQ = window.matchMedia('(min-width: 960px)');
+  var fineMQ = window.matchMedia('(hover: hover) and (pointer: fine)');
 
   /* ---------- storage ---------- */
 
@@ -3369,7 +3555,8 @@ textarea {
       memLevel: 'rich',
       ttsAuto: 'off',
       ttsVoice: 'system',
-      ttsRate: 1
+      ttsRate: 1,
+      sidebar: true
     };
   }
   function freshState() {
@@ -3500,6 +3687,14 @@ textarea {
     document.documentElement.setAttribute('data-resolved', resolved);
     var meta = document.querySelector('meta[name="theme-color"]');
     if (meta) meta.setAttribute('content', resolved === 'light' ? '#f2f4f9' : '#0b0d13');
+  }
+
+  function syncHint() {
+    var h = document.querySelector('.hint');
+    if (!h) return;
+    h.textContent = fineMQ.matches
+      ? 'Enter 发送 · Shift + Enter 换行 · 支持发图'
+      : '⌘/Ctrl + Enter 发送 · 支持发图';
   }
 
   function fitViewport() {
@@ -4764,6 +4959,13 @@ textarea {
   /* ---------- drawer / sheet ---------- */
 
   function openDrawer() {
+    if (desktopMQ.matches) {
+      // 桌面端：会话栏常驻，按钮变成收起 / 展开
+      var collapsed = document.body.classList.toggle('sb-collapsed');
+      state.settings.sidebar = !collapsed;
+      save();
+      return;
+    }
     renderDrawer();
     $('#drawer').classList.add('on');
     $('#backdrop').classList.add('on');
@@ -4939,7 +5141,15 @@ textarea {
       syncSend();
     });
     inputEl.addEventListener('keydown', function (e) {
-      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+      if (e.key !== 'Enter') return;
+      if (e.isComposing || e.keyCode === 229) return;
+      if (e.metaKey || e.ctrlKey) {
+        e.preventDefault();
+        send();
+        return;
+      }
+      // 桌面端：Enter 直接发送，Shift + Enter 换行；手机保持 Enter 换行
+      if (fineMQ.matches && !e.shiftKey) {
         e.preventDefault();
         send();
       }
@@ -5341,7 +5551,62 @@ textarea {
       toast('已清空');
     });
 
+    document.addEventListener('keydown', function (e) {
+      if (e.key !== 'Escape') return;
+      var lb = $('#lightbox');
+      if (lb && lb.classList.contains('on')) {
+        lb.classList.remove('on');
+        return;
+      }
+      if ($('#settings').classList.contains('on')) {
+        closeSettings();
+        return;
+      }
+      if ($('#drawer').classList.contains('on')) closeDrawer();
+    });
+
+    // 桌面端：粘贴图片、拖拽图片进来
+    document.addEventListener('paste', function (e) {
+      var cd = e.clipboardData;
+      if (!cd) return;
+      var files = [];
+      for (var i = 0; i < cd.items.length; i++) {
+        var it = cd.items[i];
+        if (it.kind === 'file' && /^image\//.test(it.type)) {
+          var f = it.getAsFile();
+          if (f) files.push(f);
+        }
+      }
+      if (files.length) {
+        e.preventDefault();
+        addFiles(files);
+      }
+    });
+    function hasFileDrag(e) {
+      var dt = e.dataTransfer;
+      if (!dt) return false;
+      for (var i = 0; i < dt.types.length; i++) if (dt.types[i] === 'Files') return true;
+      return false;
+    }
+    ['dragenter', 'dragover'].forEach(function (ev) {
+      window.addEventListener(ev, function (e) {
+        if (!hasFileDrag(e)) return;
+        e.preventDefault();
+        document.body.classList.add('dragging');
+      });
+    });
+    window.addEventListener('dragleave', function (e) {
+      if (!e.relatedTarget) document.body.classList.remove('dragging');
+    });
+    window.addEventListener('drop', function (e) {
+      if (!hasFileDrag(e)) return;
+      e.preventDefault();
+      document.body.classList.remove('dragging');
+      addFiles(e.dataTransfer.files);
+    });
+
     themeMQ.addEventListener('change', applyTheme);
+    if (fineMQ.addEventListener) fineMQ.addEventListener('change', syncHint);
     window.addEventListener('resize', fitViewport);
     window.addEventListener('orientationchange', function () {
       setTimeout(fitViewport, 250);
@@ -5923,6 +6188,10 @@ textarea {
   function boot() {
     state = loadState();
     applyTheme();
+    if (desktopMQ.matches && state.settings.sidebar === false) {
+      document.body.classList.add('sb-collapsed');
+    }
+    syncHint();
     bind();
     // 禁止双指缩放（iOS Safari 会忽略 viewport 的 user-scalable，这里再兜一层）
     ['gesturestart', 'gesturechange', 'gestureend'].forEach(function (ev) {

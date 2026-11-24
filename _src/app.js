@@ -972,6 +972,8 @@
   var saveTimer = 0;
   var toastTimer = 0;
   var themeMQ = window.matchMedia('(prefers-color-scheme: light)');
+  var desktopMQ = window.matchMedia('(min-width: 960px)');
+  var fineMQ = window.matchMedia('(hover: hover) and (pointer: fine)');
 
   /* ---------- storage ---------- */
 
@@ -990,7 +992,8 @@
       memLevel: 'rich',
       ttsAuto: 'off',
       ttsVoice: 'system',
-      ttsRate: 1
+      ttsRate: 1,
+      sidebar: true
     };
   }
   function freshState() {
@@ -1121,6 +1124,14 @@
     document.documentElement.setAttribute('data-resolved', resolved);
     var meta = document.querySelector('meta[name="theme-color"]');
     if (meta) meta.setAttribute('content', resolved === 'light' ? '#f2f4f9' : '#0b0d13');
+  }
+
+  function syncHint() {
+    var h = document.querySelector('.hint');
+    if (!h) return;
+    h.textContent = fineMQ.matches
+      ? 'Enter 发送 · Shift + Enter 换行 · 支持发图'
+      : '⌘/Ctrl + Enter 发送 · 支持发图';
   }
 
   function fitViewport() {
@@ -2385,6 +2396,13 @@
   /* ---------- drawer / sheet ---------- */
 
   function openDrawer() {
+    if (desktopMQ.matches) {
+      // 桌面端：会话栏常驻，按钮变成收起 / 展开
+      var collapsed = document.body.classList.toggle('sb-collapsed');
+      state.settings.sidebar = !collapsed;
+      save();
+      return;
+    }
     renderDrawer();
     $('#drawer').classList.add('on');
     $('#backdrop').classList.add('on');
@@ -2560,7 +2578,15 @@
       syncSend();
     });
     inputEl.addEventListener('keydown', function (e) {
-      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+      if (e.key !== 'Enter') return;
+      if (e.isComposing || e.keyCode === 229) return;
+      if (e.metaKey || e.ctrlKey) {
+        e.preventDefault();
+        send();
+        return;
+      }
+      // 桌面端：Enter 直接发送，Shift + Enter 换行；手机保持 Enter 换行
+      if (fineMQ.matches && !e.shiftKey) {
         e.preventDefault();
         send();
       }
@@ -2962,7 +2988,62 @@
       toast('已清空');
     });
 
+    document.addEventListener('keydown', function (e) {
+      if (e.key !== 'Escape') return;
+      var lb = $('#lightbox');
+      if (lb && lb.classList.contains('on')) {
+        lb.classList.remove('on');
+        return;
+      }
+      if ($('#settings').classList.contains('on')) {
+        closeSettings();
+        return;
+      }
+      if ($('#drawer').classList.contains('on')) closeDrawer();
+    });
+
+    // 桌面端：粘贴图片、拖拽图片进来
+    document.addEventListener('paste', function (e) {
+      var cd = e.clipboardData;
+      if (!cd) return;
+      var files = [];
+      for (var i = 0; i < cd.items.length; i++) {
+        var it = cd.items[i];
+        if (it.kind === 'file' && /^image\//.test(it.type)) {
+          var f = it.getAsFile();
+          if (f) files.push(f);
+        }
+      }
+      if (files.length) {
+        e.preventDefault();
+        addFiles(files);
+      }
+    });
+    function hasFileDrag(e) {
+      var dt = e.dataTransfer;
+      if (!dt) return false;
+      for (var i = 0; i < dt.types.length; i++) if (dt.types[i] === 'Files') return true;
+      return false;
+    }
+    ['dragenter', 'dragover'].forEach(function (ev) {
+      window.addEventListener(ev, function (e) {
+        if (!hasFileDrag(e)) return;
+        e.preventDefault();
+        document.body.classList.add('dragging');
+      });
+    });
+    window.addEventListener('dragleave', function (e) {
+      if (!e.relatedTarget) document.body.classList.remove('dragging');
+    });
+    window.addEventListener('drop', function (e) {
+      if (!hasFileDrag(e)) return;
+      e.preventDefault();
+      document.body.classList.remove('dragging');
+      addFiles(e.dataTransfer.files);
+    });
+
     themeMQ.addEventListener('change', applyTheme);
+    if (fineMQ.addEventListener) fineMQ.addEventListener('change', syncHint);
     window.addEventListener('resize', fitViewport);
     window.addEventListener('orientationchange', function () {
       setTimeout(fitViewport, 250);
@@ -3544,6 +3625,10 @@
   function boot() {
     state = loadState();
     applyTheme();
+    if (desktopMQ.matches && state.settings.sidebar === false) {
+      document.body.classList.add('sb-collapsed');
+    }
+    syncHint();
     bind();
     // 禁止双指缩放（iOS Safari 会忽略 viewport 的 user-scalable，这里再兜一层）
     ['gesturestart', 'gesturechange', 'gestureend'].forEach(function (ev) {

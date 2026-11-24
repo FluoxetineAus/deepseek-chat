@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>DeepSeek 对话</title>
-<meta name="description" content="在 iPhone 上和 DeepSeek 对话的本地网页应用">
+<meta name="description" content="在 iPhone 和电脑浏览器上和 DeepSeek 对话的本地网页应用">
 <meta name="color-scheme" content="dark light">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -89,6 +89,9 @@
     <button class="done" id="closeSettings">完成</button>
   </div>
   <div class="sheet-body">
+
+    <div class="s-cols">
+    <div class="s-col">
 
     <div class="group">
       <div class="glabel">连接</div>
@@ -215,6 +218,8 @@
         </div>
       </div>
     </div>
+    </div>
+    <div class="s-col">
 
     <div class="group">
       <div class="glabel">位置</div>
@@ -293,12 +298,16 @@
         <button class="danger" id="btnClearAll">清空全部对话</button>
       </div>
     </div>
+    </div>
+    </div>
 
-    <div class="ver">DeepSeek Chat v3.4 · 对话仅保存在本机</div>
+    <div class="ver">DeepSeek Chat v3.5 · 对话仅保存在本机</div>
   </div>
 </section>
 
 <div class="lightbox" id="lightbox"><img id="lightboxImg" alt=""></div>
+
+<div class="drop" id="drop"><span>松开即可添加图片</span></div>
 
 <div class="toast" id="toast"></div>
 
