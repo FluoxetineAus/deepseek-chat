@@ -2432,6 +2432,18 @@ body.dragging .drop {
         </div>
 
         <div class="field">
+          <label>自动更新</label>
+          <div class="seg" id="segAutoProfile">
+            <button data-v="on">开启</button>
+            <button data-v="off">关闭</button>
+          </div>
+          <div class="desc" id="profileNote">每 2 轮对话后，根据聊天内容更新上面三项；只改当前对话。</div>
+          <div class="row" style="margin-top:8px">
+            <button class="mini" id="btnProfileNow" style="flex:1">立即更新</button>
+          </div>
+        </div>
+
+        <div class="field">
           <label>记忆范围</label>
           <div class="seg" id="segMemory">
             <button data-v="20">精简</button>
@@ -2555,7 +2567,7 @@ body.dragging .drop {
     </div>
     </div>
 
-    <div class="ver">DeepSeek Chat v3.6 · 对话仅保存在本机</div>
+    <div class="ver">DeepSeek Chat v3.7 · 对话仅保存在本机</div>
   </div>
 </section>
 
@@ -3360,6 +3372,103 @@ body.dragging .drop {
     return convs;
   }
 
+  /* ---------- 自动整理角色设定：每 N 条消息一次 ---------- */
+
+  function profileDue(conv, settings) {
+    if (!conv || !settings) return false;
+    if (settings.autoProfile === false) return false;
+    var every = Number(settings.profileEvery) || 4;
+    if (every < 2) every = 4;
+    var since = Number(conv.profileAt) || 0;
+    var n = 0;
+    for (var i = 0; i < conv.messages.length; i++) {
+      var m = conv.messages[i];
+      if (m.role !== 'user' && m.role !== 'assistant') continue;
+      if (m.error || m.streaming) continue;
+      if (!m.content && !(m.images && m.images.length)) continue;
+      if (since && !((m.ts || 0) > since)) continue;
+      n++;
+    }
+    return n >= every;
+  }
+
+  function buildProfilePrompt(fields, msgs) {
+    fields = fields || {};
+    var lines = [];
+    (msgs || []).forEach(function (m) {
+      var c = String(m.content || '')
+        .replace(/\s+/g, ' ')
+        .trim();
+      if (!c) return;
+      if (c.length > 900) c = c.slice(0, 900) + '…';
+      lines.push((m.role === 'user' ? '用户：' : '助手：') + c);
+    });
+    return (
+      '你是角色设定整理助手。根据下面的对话，更新这个对话的三项设定。\n\n' +
+      '总原则：\n' +
+      '1. 只写对话里明确出现过的信息，不要编造、不要推测、不要写没发生的事。\n' +
+      '2. 已有设定里仍然有效的内容必须保留；只有被新对话明确推翻时才修改。\n' +
+      '3. 角色设定描述助手是谁、什么性格、怎么说话；不要写用户信息，也不要写具体剧情。\n' +
+      '4. 我的人设描述用户本人的稳定信息：称呼、年龄、职业、所在地、喜好、雷区等。\n' +
+      '5. 我们的关系用一两句话描述你们的关系和相处方式。\n' +
+      '6. 三项都用中文，尽量简洁分条；没有新信息就原样返回，不要为了更新而更新。\n' +
+      '7. 只输出一个 JSON 对象，不要 Markdown 代码块，不要解释。键名固定为 system / userPersona / relationship。\n\n' +
+      '===== 当前设定 =====\n' +
+      '【角色设定】\n' +
+      (fields.system || '（空）') +
+      '\n\n【我的人设】\n' +
+      (fields.userPersona || '（空）') +
+      '\n\n【我们的关系】\n' +
+      (fields.relationship || '（空）') +
+      '\n\n===== 最近的对话 =====\n' +
+      lines.join('\n') +
+      '\n\n===== 输出 =====\n' +
+      '{"system":"...","userPersona":"...","relationship":"..."}'
+    );
+  }
+
+  function parseProfileJSON(text) {
+    var t = String(text || '').trim();
+    t = t
+      .replace(/^```(?:json)?\s*/i, '')
+      .replace(/```\s*$/, '')
+      .trim();
+    var a = t.indexOf('{');
+    var b = t.lastIndexOf('}');
+    if (a < 0 || b <= a) return null;
+    var j;
+    try {
+      j = JSON.parse(t.slice(a, b + 1));
+    } catch (e) {
+      return null;
+    }
+    if (!j || typeof j !== 'object' || Array.isArray(j)) return null;
+    var out = {};
+    ['system', 'userPersona', 'relationship'].forEach(function (k) {
+      var v = j[k];
+      if (typeof v !== 'string') {
+        var alias =
+          k === 'system' ? j['角色设定'] : k === 'userPersona' ? j['我的人设'] : j['我们的关系'];
+        if (typeof alias === 'string') v = alias;
+      }
+      if (typeof v === 'string') out[k] = v.trim().slice(0, 4000);
+    });
+    return Object.keys(out).length ? out : null;
+  }
+
+  // 用户在请求期间手动改过任何一项，就放弃这次自动结果，避免覆盖
+  function applyProfileFields(conv, before, data) {
+    if (!conv || !data) return false;
+    before = before || {};
+    if ((conv.system || '') !== (before.system || '')) return false;
+    if ((conv.userPersona || '') !== (before.userPersona || '')) return false;
+    if ((conv.relationship || '') !== (before.relationship || '')) return false;
+    ['system', 'userPersona', 'relationship'].forEach(function (k) {
+      if (typeof data[k] === 'string' && data[k].trim()) conv[k] = data[k].trim();
+    });
+    return true;
+  }
+
   function buildApiMessages(conv, settings, keepTurns, budget) {
     var raw = [];
     for (var i = 0; i < conv.messages.length; i++) {
@@ -3472,6 +3581,10 @@ body.dragging .drop {
     nowLine: nowLine,
     normalizeKeepTurns: normalizeKeepTurns,
     adoptConvProfile: adoptConvProfile,
+    profileDue: profileDue,
+    buildProfilePrompt: buildProfilePrompt,
+    parseProfileJSON: parseProfileJSON,
+    applyProfileFields: applyProfileFields,
     buildApiMessages: buildApiMessages,
     apiError: apiError
   };
@@ -3524,6 +3637,7 @@ body.dragging .drop {
     backupLocs: 0,
     balanceAt: 0,
     proactiveBusy: false,
+    profileBusy: {},
     renderLimit: 60
   };
   var backupTimer = 0;
@@ -3555,7 +3669,9 @@ body.dragging .drop {
       ttsAuto: 'off',
       ttsVoice: 'system',
       ttsRate: 1,
-      sidebar: true
+      sidebar: true,
+      autoProfile: true,
+      profileEvery: 4
     };
   }
   function freshState() {
@@ -4941,6 +5057,10 @@ body.dragging .drop {
           setTimeout(function () {
             compactMemory(conv);
           }, 600);
+        } else if (!msg.error && !removed && profileDue(conv, state.settings)) {
+          setTimeout(function () {
+            updateProfile(conv);
+          }, 1600);
         }
       });
   }
@@ -4992,6 +5112,8 @@ body.dragging .drop {
     $('#inpRelationship').value =
       c0 && typeof c0.relationship === 'string' ? c0.relationship : '';
     syncPersonaUI(c0);
+    syncSeg('#segAutoProfile', s.autoProfile === false ? 'off' : 'on');
+    updateProfileNote(c0);
     $('#inpMemory').value = (c0 && c0.memory && c0.memory.text) || '';
     updateMemNote(c0);
     $('#inpTemp').value = s.temperature;
@@ -5093,6 +5215,134 @@ body.dragging .drop {
       var el = document.getElementById(id);
       if (el) el.disabled = !conv;
     });
+  }
+
+  function updateProfileNote(conv) {
+    // 自动更新可能在别的对话里跑；不要把 A 的状态写进 B 的面板
+    if (conv && currentConv() !== conv) return;
+    var el = document.getElementById('profileNote');
+    if (!el) return;
+    if (!conv) {
+      el.textContent = '先打开一个对话。';
+      return;
+    }
+    if (ui.profileBusy[conv.id]) {
+      el.textContent = '正在根据对话更新…';
+      return;
+    }
+    var every = Number(state.settings.profileEvery) || 4;
+    var rounds = Math.max(1, Math.round(every / 2));
+    var base =
+      state.settings.autoProfile === false
+        ? '自动更新已关闭，可以手动点「立即更新」。'
+        : '每 ' + rounds + ' 轮对话后自动更新；只改当前对话。';
+    if (conv.profileAt) {
+      var d = new Date(conv.profileAt);
+      var hh = ('0' + d.getHours()).slice(-2);
+      var mm = ('0' + d.getMinutes()).slice(-2);
+      el.textContent =
+        '上次更新 ' + (d.getMonth() + 1) + '/' + d.getDate() + ' ' + hh + ':' + mm + ' · ' + base;
+    } else {
+      el.textContent = base + ' 还没有更新过。';
+    }
+  }
+
+  function refreshProfileFields(conv) {
+    if (!conv || currentConv() !== conv) return;
+    var panel = document.getElementById('settings');
+    if (!panel || !panel.classList.contains('on')) return;
+    [
+      ['inpSystem', 'system'],
+      ['inpUserPersona', 'userPersona'],
+      ['inpRelationship', 'relationship']
+    ].forEach(function (pair) {
+      var el = document.getElementById(pair[0]);
+      if (!el || document.activeElement === el) return;
+      el.value = conv[pair[1]] || '';
+    });
+    updateProfileNote(conv);
+  }
+
+  function updateProfile(conv, opts) {
+    conv = conv || currentConv();
+    opts = opts || {};
+    if (!conv) {
+      if (opts.manual) toast('先打开一个对话');
+      return Promise.resolve(false);
+    }
+    if (ui.profileBusy[conv.id]) {
+      if (opts.manual) toast('正在更新，稍等一下');
+      return Promise.resolve(false);
+    }
+    if (ui.streaming) {
+      if (opts.manual) toast('等这轮回复结束再更新');
+      return Promise.resolve(false);
+    }
+    if (conv.compacting) {
+      if (opts.manual) toast('等长期记忆整理完再更新');
+      return Promise.resolve(false);
+    }
+    var s = state.settings;
+    if (!(s.apiKey || '').trim()) {
+      if (opts.manual) toast('先填入 API Key');
+      return Promise.resolve(false);
+    }
+    var list = sendableMessages(conv);
+    if (list.length < 2) {
+      if (opts.manual) toast('先聊两句再更新');
+      return Promise.resolve(false);
+    }
+
+    var before = {
+      system: conv.system || '',
+      userPersona: conv.userPersona || '',
+      relationship: conv.relationship || ''
+    };
+    ui.profileBusy[conv.id] = true;
+    updateProfileNote(conv);
+    if (opts.manual) toast('正在更新角色设定…');
+
+    return streamChat({
+      apiKey: s.apiKey.trim(),
+      model: 'deepseek-flash',
+      messages: [
+        {
+          role: 'user',
+          content: buildProfilePrompt(before, list.slice(-24))
+        }
+      ],
+      thinking: false,
+      temperature: 0.2
+    })
+      .then(function (r) {
+        var data = parseProfileJSON(r && r.content);
+        if (!data) throw new Error('模型返回格式不对');
+        if (!opts.manual && state.settings.autoProfile === false) return false;
+        var applied = applyProfileFields(conv, before, data);
+        if (!applied) {
+          // 用户刚刚手动改过，保留手动内容，不写入这次结果
+          if (opts.manual) toast('设定刚被手动改过，这次没有覆盖');
+          return false;
+        }
+        var changed =
+          before.system !== (conv.system || '') ||
+          before.userPersona !== (conv.userPersona || '') ||
+          before.relationship !== (conv.relationship || '');
+        conv.profileAt = Date.now();
+        refreshProfileFields(conv);
+        flushSave();
+        if (opts.manual) toast(changed ? '角色设定已更新' : '没有需要更新的内容');
+        return true;
+      })
+      .catch(function (e) {
+        if (opts.manual) toast('更新失败：' + ((e && e.message) || '未知错误'));
+        return false;
+      })
+      .then(function (ok) {
+        delete ui.profileBusy[conv.id];
+        updateProfileNote(conv);
+        return ok;
+      });
   }
 
   function updateMemNote(conv) {
@@ -5451,6 +5701,18 @@ body.dragging .drop {
         save();
       });
     });
+    document.querySelectorAll('#segAutoProfile button').forEach(function (b) {
+      b.addEventListener('click', function () {
+        state.settings.autoProfile = b.getAttribute('data-v') !== 'off';
+        syncSeg('#segAutoProfile', state.settings.autoProfile ? 'on' : 'off');
+        updateProfileNote(currentConv());
+        save();
+      });
+    });
+    $('#btnProfileNow').addEventListener('click', function () {
+      updateProfile(currentConv(), { manual: true });
+    });
+
     document.querySelectorAll('#segTheme button').forEach(function (b) {
       b.addEventListener('click', function () {
         state.settings.theme = b.getAttribute('data-v');

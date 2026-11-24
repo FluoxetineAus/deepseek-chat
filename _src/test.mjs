@@ -383,6 +383,72 @@ ok('旧数据迁移：给每个对话写入独立副本', () => {
   assert.equal(convs[2].relationship, '', '显式空关系不覆盖');
 });
 
+ok('自动更新频率：4 条新消息触发一次', () => {
+  const now = Date.now();
+  const conv = { messages: [] };
+  for (let i = 0; i < 4; i++) {
+    conv.messages.push({ role: i % 2 ? 'assistant' : 'user', content: 'm' + i, ts: now + i });
+  }
+  assert.equal(app.profileDue(conv, { autoProfile: true, profileEvery: 4 }), true, '4 条应触发');
+  conv.profileAt = now + 10;
+  assert.equal(app.profileDue(conv, { autoProfile: true, profileEvery: 4 }), false, '刚更新过不触发');
+  for (let i = 0; i < 4; i++) {
+    conv.messages.push({ role: i % 2 ? 'assistant' : 'user', content: 'n' + i, ts: now + 20 + i });
+  }
+  assert.equal(app.profileDue(conv, { autoProfile: true, profileEvery: 4 }), true, '新增 4 条再触发');
+  assert.equal(app.profileDue(conv, { autoProfile: false }), false, '关闭后不触发');
+});
+
+ok('设定整理提示包含三项设定与对话', () => {
+  const p = app.buildProfilePrompt(
+    { system: '角色A', userPersona: '用户B', relationship: '关系C' },
+    [
+      { role: 'user', content: '我住在杭州' },
+      { role: 'assistant', content: '好的' }
+    ]
+  );
+  assert.ok(p.includes('角色A') && p.includes('用户B') && p.includes('关系C'), '带当前三项');
+  assert.ok(p.includes('用户：我住在杭州') && p.includes('助手：好的'), '带对话');
+  assert.ok(
+    p.includes('"system"') && p.includes('"userPersona"') && p.includes('"relationship"'),
+    '给出 JSON 键名'
+  );
+});
+
+ok('解析设定 JSON：容忍代码块与说明', () => {
+  const a = app.parseProfileJSON(
+    '```json\n{"system":"S","userPersona":"U","relationship":"R"}\n```'
+  );
+  assert.deepEqual(a, { system: 'S', userPersona: 'U', relationship: 'R' });
+  const b = app.parseProfileJSON('结果如下：{"system":"S"} 希望有用');
+  assert.equal(b.system, 'S');
+  assert.equal(app.parseProfileJSON('不是 JSON'), null);
+});
+
+ok('用户中途改过设定时不覆盖', () => {
+  const conv = { system: 'A', userPersona: 'B', relationship: 'C' };
+  const before = { system: 'A', userPersona: 'B', relationship: 'C' };
+  conv.system = '用户改过';
+  assert.equal(
+    app.applyProfileFields(conv, before, { system: '自动', userPersona: 'U2', relationship: 'R2' }),
+    false
+  );
+  assert.equal(conv.system, '用户改过');
+  assert.equal(conv.userPersona, 'B', '其他字段也不写');
+  const conv2 = { system: '', userPersona: '', relationship: '' };
+  assert.equal(
+    app.applyProfileFields(conv2, { system: '', userPersona: '', relationship: '' }, {
+      system: 'S',
+      userPersona: 'U',
+      relationship: ''
+    }),
+    true
+  );
+  assert.equal(conv2.system, 'S');
+  assert.equal(conv2.userPersona, 'U');
+  assert.equal(conv2.relationship, '', '空输出不覆盖');
+});
+
 ok('上下文保留图片块', () => {
   const conv = {
     messages: [

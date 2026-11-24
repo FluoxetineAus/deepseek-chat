@@ -1,5 +1,5 @@
 /* 离线缓存：让页面在没网/电脑关机时也能打开（聊天仍需网络） */
-const CACHE = 'dschat-v3.6';
+const CACHE = 'dschat-v3.7';
 const CORE = ['./', './index.html', './icon-180.png', './icon-512.png', './avatar.jpg'];
 
 self.addEventListener('install', (e) => {
