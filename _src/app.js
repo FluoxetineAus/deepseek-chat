@@ -1091,7 +1091,8 @@
       ttsRate: 1,
       sidebar: true,
       autoProfile: true,
-      profileEvery: 4
+      profileEvery: 4,
+      skeuo: true
     };
   }
   function freshState() {
@@ -1220,6 +1221,7 @@
     var resolved = t === 'auto' ? (themeMQ.matches ? 'light' : 'dark') : t;
     document.documentElement.setAttribute('data-theme', t);
     document.documentElement.setAttribute('data-resolved', resolved);
+    document.documentElement.classList.toggle('skeuo', state.settings.skeuo !== false);
     var meta = document.querySelector('meta[name="theme-color"]');
     if (meta) meta.setAttribute('content', resolved === 'light' ? '#f2f4f9' : '#0b0d13');
   }
@@ -2554,6 +2556,7 @@
     paintRange($('#inpTtsRate'));
     syncTtsNote();
     syncSeg('#segTheme', s.theme);
+    syncSeg('#segSkeuo', s.skeuo === false ? 'off' : 'on');
     syncModelNote();
     syncKeyNote();
     syncGeoUI();
@@ -3133,6 +3136,14 @@
       updateProfile(currentConv(), { manual: true });
     });
 
+    document.querySelectorAll('#segSkeuo button').forEach(function (b) {
+      b.addEventListener('click', function () {
+        state.settings.skeuo = b.getAttribute('data-v') !== 'off';
+        syncSeg('#segSkeuo', state.settings.skeuo ? 'on' : 'off');
+        applyTheme();
+        save();
+      });
+    });
     document.querySelectorAll('#segTheme button').forEach(function (b) {
       b.addEventListener('click', function () {
         state.settings.theme = b.getAttribute('data-v');
