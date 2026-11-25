@@ -1062,7 +1062,8 @@
   };
   var backupTimer = 0;
   var MAX_IMAGES = 4;
-  var MAX_SIDE = 1280;
+  var MAX_SIDE = 1200;
+  var SHADOW_MAX = 800 * 1024;
   var atBottom = true;
   var paintTimer = 0;
   var saveTimer = 0;
@@ -1162,6 +1163,11 @@
       ) {
         st.currentId = st.convs.length ? st.convs[0].id : null;
       }
+      // 主副本有效时，顺手释放旧版本留下的大影子副本，避免白占一半配额
+      try {
+        var pv = localStorage.getItem(PREV_KEY);
+        if (pv && pv.length > SHADOW_MAX) localStorage.removeItem(PREV_KEY);
+      } catch (e4) {}
       return st;
     } catch (e) {
       return freshState();
@@ -1178,40 +1184,108 @@
         if (m.images && m.images.length) arr.push(m);
       });
     });
-    if (!arr.length) return false;
+    if (!arr.length) return [];
     arr.sort(function (a, b) {
       return (a.ts || 0) - (b.ts || 0);
     });
-    var n = 0;
-    for (var i = 0; i < arr.length && n < limit; i++) {
+    var removed = [];
+    for (var i = 0; i < arr.length && removed.length < limit; i++) {
+      removed.push({ m: arr[i], imgs: arr[i].images });
       delete arr[i].images;
-      n++;
     }
-    return n > 0;
+    return removed;
+  }
+
+  function writeShadow(json) {
+    // 影子副本只在小数据时写；大状态下它会白占一半配额
+    if (json.length <= SHADOW_MAX) {
+      try {
+        localStorage.setItem(PREV_KEY, json);
+      } catch (e) {}
+    } else {
+      try {
+        localStorage.removeItem(PREV_KEY);
+      } catch (e) {}
+    }
+  }
+
+  function persist(json) {
+    localStorage.setItem(STORE_KEY, json);
+    writeShadow(json);
   }
 
   function flushSave() {
     clearTimeout(saveTimer);
+    var next;
     try {
-      var next = JSON.stringify(state);
-      localStorage.setItem(STORE_KEY, next);
-      try {
-        localStorage.setItem(PREV_KEY, next);
-      } catch (e3) {}
+      next = JSON.stringify(state);
+    } catch (e0) {
+      toast('保存失败：数据无法序列化');
+      return false;
+    }
+
+    try {
+      persist(next);
       ui.dirty = true;
       scheduleBackup();
+      return true;
     } catch (e) {
-      if (stripOldImages(8)) {
-        try {
-          localStorage.setItem(STORE_KEY, JSON.stringify(state));
-          toast('本地空间不足，已清理最早的图片');
-          return;
-        } catch (e2) {
-          /* 还是不够 */
+      /* 先试试释放旧版本的影子副本 */
+      var shadow = null;
+      try {
+        shadow = localStorage.getItem(PREV_KEY);
+        localStorage.removeItem(PREV_KEY);
+      } catch (e1) {}
+      try {
+        persist(next);
+        ui.dirty = true;
+        scheduleBackup();
+        toast('本地空间紧张，已释放旧备份副本');
+        return true;
+      } catch (e2) {
+        /* 还不够，开始清图片 */
+        if (shadow) {
+          try {
+            localStorage.setItem(PREV_KEY, shadow);
+          } catch (e3) {}
         }
       }
-      toast('保存失败：本地存储空间已满');
     }
+
+    var removed = [];
+    var saved = false;
+    var imgCount = 0;
+    for (var round = 0; round < 80; round++) {
+      var batch = stripOldImages(4);
+      if (!batch.length) break;
+      removed = removed.concat(batch);
+      batch.forEach(function (x) {
+        imgCount += (x.imgs || []).length;
+      });
+      try {
+        persist(JSON.stringify(state));
+        saved = true;
+        break;
+      } catch (e4) {
+        /* 继续清下一批 */
+      }
+    }
+
+    if (saved) {
+      ui.dirty = true;
+      scheduleBackup();
+      toast('本地空间不足，已清理最早的 ' + imgCount + ' 张图片，文字保留');
+      updateGuardNote();
+      return true;
+    }
+
+    // 全清完还存不下：恢复图片，让用户先导出/清理对话
+    removed.forEach(function (x) {
+      x.m.images = x.imgs;
+    });
+    toast('本地存储已满：文字内容过多，请先导出备份再清理旧对话');
+    updateGuardNote();
+    return false;
   }
 
   /* ---------- theme / viewport ---------- */
@@ -1334,7 +1408,7 @@
             ctx.fillStyle = '#ffffff';
             ctx.fillRect(0, 0, cv.width, cv.height);
             ctx.drawImage(img, 0, 0, cv.width, cv.height);
-            resolve(cv.toDataURL('image/jpeg', 0.82));
+            resolve(cv.toDataURL('image/jpeg', 0.8));
           } catch (e) {
             resolve(null);
           }
@@ -3228,6 +3302,31 @@
       $('#fileImport').click();
     });
     $('#fileImport').addEventListener('change', importData);
+    $('#btnPruneImages').addEventListener('click', function () {
+      if (ui.streaming) {
+        toast('等这轮回复结束再清理');
+        return;
+      }
+      var b = $('#btnPruneImages');
+      if (!b.classList.contains('arm')) {
+        b.classList.add('arm');
+        b.textContent = '再点一次，删除旧图片';
+        setTimeout(function () {
+          b.classList.remove('arm');
+          b.textContent = '清理旧图片';
+        }, 3000);
+        return;
+      }
+      b.classList.remove('arm');
+      b.textContent = '清理旧图片';
+      var n = pruneOldImages(8);
+      var ok = flushSave();
+      renderChat();
+      updateGuardNote();
+      if (ok === false) toast('已清理 ' + n + ' 张图片，但文字仍然过多，请先导出备份');
+      else toast(n ? '已清理 ' + n + ' 张旧图片，文字保留' : '没有可清理的旧图片');
+    });
+
     $('#btnClearAll').addEventListener('click', function () {
       var b = $('#btnClearAll');
       if (!b.classList.contains('arm')) {
@@ -3511,6 +3610,23 @@
       });
   }
 
+  function pruneOldImages(keep) {
+    keep = Math.max(2, Number(keep) || 8);
+    var n = 0;
+    state.convs.forEach(function (c) {
+      var msgs = c.messages || [];
+      var cut = Math.max(0, msgs.length - keep);
+      for (var i = 0; i < cut; i++) {
+        var m = msgs[i];
+        if (m.images && m.images.length) {
+          n += m.images.length;
+          delete m.images;
+        }
+      }
+    });
+    return n;
+  }
+
   function updateGuardNote() {
     var el = document.getElementById('guardNote');
     if (!el) return;
@@ -3523,7 +3639,13 @@
       bytes < 1024 * 1024
         ? (bytes / 1024).toFixed(bytes < 10240 ? 1 : 0) + ' KB'
         : (bytes / 1024 / 1024).toFixed(2) + ' MB';
-    var tight = bytes > 3.5 * 1024 * 1024;
+    var tight = bytes > 4 * 1024 * 1024;
+    var imgCount = 0;
+    state.convs.forEach(function (c) {
+      (c.messages || []).forEach(function (m) {
+        if (m.images) imgCount += m.images.length;
+      });
+    });
     var le = state.settings.lastExportAt;
     var exportTxt = le
       ? new Date(le).getMonth() + 1 + '/' + new Date(le).getDate()
@@ -3533,6 +3655,11 @@
       sizeText +
       ' / 约 5 MB' +
       (tight ? ' <span class="warn">偏满</span>' : '') +
+      '<br>' +
+      '<b>图片</b> ' +
+      imgCount +
+      ' 张' +
+      (imgCount ? '（可点上方「清理旧图片」）' : '') +
       '<br>' +
       '<b>最近导出</b> ' +
       exportTxt +
