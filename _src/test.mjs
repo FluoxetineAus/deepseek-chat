@@ -449,6 +449,29 @@ ok('用户中途改过设定时不覆盖', () => {
   assert.equal(conv2.relationship, '', '空输出不覆盖');
 });
 
+ok('清理旧图片保留最近 N 条消息', () => {
+  const convs = [
+    {
+      messages: [
+        { content: 'a', images: ['x'] },
+        { content: 'b', images: ['y', 'z'] },
+        { content: 'c' },
+        { content: 'd', images: ['w'] }
+      ]
+    },
+    { messages: [{ content: 'e', images: ['1'] }] }
+  ];
+  assert.equal(app.pruneImages(convs, 2), 3, '清掉前两条消息的 3 张图');
+  assert.equal(convs[0].messages[0].images, undefined);
+  assert.equal(convs[0].messages[1].images, undefined);
+  assert.equal(convs[0].messages[2].content, 'c', '文字保留');
+  assert.deepEqual(convs[0].messages[3].images, ['w'], '最近 2 条保留图片');
+  assert.deepEqual(convs[1].messages[0].images, ['1'], '短对话不动');
+  assert.equal(app.pruneImages(convs, 0), 2, 'keep=0 清掉剩下所有图片');
+  assert.equal(convs[0].messages[3].images, undefined);
+  assert.equal(convs[1].messages[0].images, undefined);
+});
+
 ok('上下文保留图片块', () => {
   const conv = {
     messages: [

@@ -3263,6 +3263,14 @@ html.skeuo[data-resolved='dark'] .sheet {
     <div class="group">
       <div class="glabel">数据</div>
       <div class="card">
+        <div class="field">
+          <label>自动清理旧图片</label>
+          <div class="seg" id="segAutoClean">
+            <button data-v="on">开启</button>
+            <button data-v="off">关闭</button>
+          </div>
+          <div class="desc">本地占用超过约 3.5MB 时，自动删除较早消息里的图片，每个对话保留最近 8 条；文字不会丢。</div>
+        </div>
         <div class="row">
           <button class="mini" id="btnExport" style="flex:1">导出备份</button>
           <button class="mini" id="btnImport" style="flex:1">导入备份</button>
@@ -3288,7 +3296,7 @@ html.skeuo[data-resolved='dark'] .sheet {
     </div>
     </div>
 
-    <div class="ver">DeepSeek Chat v3.9 · 对话仅保存在本机</div>
+    <div class="ver">DeepSeek Chat v3.10 · 对话仅保存在本机</div>
   </div>
 </section>
 
@@ -4306,6 +4314,7 @@ html.skeuo[data-resolved='dark'] .sheet {
     buildProfilePrompt: buildProfilePrompt,
     parseProfileJSON: parseProfileJSON,
     applyProfileFields: applyProfileFields,
+    pruneImages: pruneImages,
     buildApiMessages: buildApiMessages,
     apiError: apiError
   };
@@ -4365,6 +4374,7 @@ html.skeuo[data-resolved='dark'] .sheet {
   var MAX_IMAGES = 4;
   var MAX_SIDE = 1200;
   var SHADOW_MAX = 800 * 1024;
+  var AUTO_CLEAN_AT = 1.8 * 1024 * 1024;
   var atBottom = true;
   var paintTimer = 0;
   var saveTimer = 0;
@@ -4394,7 +4404,8 @@ html.skeuo[data-resolved='dark'] .sheet {
       sidebar: true,
       autoProfile: true,
       profileEvery: 4,
-      skeuo: true
+      skeuo: true,
+      autoClean: true
     };
   }
   function freshState() {
@@ -4529,6 +4540,7 @@ html.skeuo[data-resolved='dark'] .sheet {
       persist(next);
       ui.dirty = true;
       scheduleBackup();
+      maybeAutoClean();
       return true;
     } catch (e) {
       /* 先试试释放旧版本的影子副本 */
@@ -4542,6 +4554,7 @@ html.skeuo[data-resolved='dark'] .sheet {
         ui.dirty = true;
         scheduleBackup();
         toast('本地空间紧张，已释放旧备份副本');
+        maybeAutoClean();
         return true;
       } catch (e2) {
         /* 还不够，开始清图片 */
@@ -4577,6 +4590,7 @@ html.skeuo[data-resolved='dark'] .sheet {
       scheduleBackup();
       toast('本地空间不足，已清理最早的 ' + imgCount + ' 张图片，文字保留');
       updateGuardNote();
+      maybeAutoClean();
       return true;
     }
 
@@ -5932,6 +5946,7 @@ html.skeuo[data-resolved='dark'] .sheet {
     syncTtsNote();
     syncSeg('#segTheme', s.theme);
     syncSeg('#segSkeuo', s.skeuo === false ? 'off' : 'on');
+    syncSeg('#segAutoClean', s.autoClean === false ? 'off' : 'on');
     syncModelNote();
     syncKeyNote();
     syncGeoUI();
@@ -6511,6 +6526,14 @@ html.skeuo[data-resolved='dark'] .sheet {
       updateProfile(currentConv(), { manual: true });
     });
 
+    document.querySelectorAll('#segAutoClean button').forEach(function (b) {
+      b.addEventListener('click', function () {
+        state.settings.autoClean = b.getAttribute('data-v') !== 'off';
+        syncSeg('#segAutoClean', state.settings.autoClean ? 'on' : 'off');
+        save();
+        if (state.settings.autoClean) maybeAutoClean();
+      });
+    });
     document.querySelectorAll('#segSkeuo button').forEach(function (b) {
       b.addEventListener('click', function () {
         state.settings.skeuo = b.getAttribute('data-v') !== 'off';
@@ -6911,10 +6934,10 @@ html.skeuo[data-resolved='dark'] .sheet {
       });
   }
 
-  function pruneOldImages(keep) {
-    keep = Math.max(2, Number(keep) || 8);
+  function pruneImages(convs, keep) {
+    keep = Math.max(0, Number(keep) || 0);
     var n = 0;
-    state.convs.forEach(function (c) {
+    (convs || []).forEach(function (c) {
       var msgs = c.messages || [];
       var cut = Math.max(0, msgs.length - keep);
       for (var i = 0; i < cut; i++) {
@@ -6926,6 +6949,32 @@ html.skeuo[data-resolved='dark'] .sheet {
       }
     });
     return n;
+  }
+
+  function pruneOldImages(keep) {
+    return pruneImages(state.convs, Math.max(2, Number(keep) || 8));
+  }
+
+  function maybeAutoClean() {
+    if (state.settings.autoClean === false) return;
+    var json;
+    try {
+      json = JSON.stringify(state);
+    } catch (e) {
+      return;
+    }
+    if (json.length <= AUTO_CLEAN_AT) return;
+    var n = pruneOldImages(8);
+    if (!n) return;
+    try {
+      persist(JSON.stringify(state));
+      ui.dirty = true;
+      scheduleBackup();
+      updateGuardNote();
+      toast('本地空间偏满，已自动清理 ' + n + ' 张旧图片（保留最近 8 条）');
+    } catch (e2) {
+      toast('自动清理后仍然存不下，请先导出备份');
+    }
   }
 
   function updateGuardNote() {
@@ -7344,6 +7393,7 @@ html.skeuo[data-resolved='dark'] .sheet {
     syncSend();
     autosize();
     fitViewport();
+    setTimeout(maybeAutoClean, 1800);
   }
 
   function showFatal(msg) {

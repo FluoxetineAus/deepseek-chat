@@ -300,6 +300,14 @@
     <div class="group">
       <div class="glabel">数据</div>
       <div class="card">
+        <div class="field">
+          <label>自动清理旧图片</label>
+          <div class="seg" id="segAutoClean">
+            <button data-v="on">开启</button>
+            <button data-v="off">关闭</button>
+          </div>
+          <div class="desc">本地占用超过约 3.5MB 时，自动删除较早消息里的图片，每个对话保留最近 8 条；文字不会丢。</div>
+        </div>
         <div class="row">
           <button class="mini" id="btnExport" style="flex:1">导出备份</button>
           <button class="mini" id="btnImport" style="flex:1">导入备份</button>
@@ -325,7 +333,7 @@
     </div>
     </div>
 
-    <div class="ver">DeepSeek Chat v3.9 · 对话仅保存在本机</div>
+    <div class="ver">DeepSeek Chat v3.10 · 对话仅保存在本机</div>
   </div>
 </section>
 

@@ -1005,6 +1005,7 @@
     buildProfilePrompt: buildProfilePrompt,
     parseProfileJSON: parseProfileJSON,
     applyProfileFields: applyProfileFields,
+    pruneImages: pruneImages,
     buildApiMessages: buildApiMessages,
     apiError: apiError
   };
@@ -1064,6 +1065,7 @@
   var MAX_IMAGES = 4;
   var MAX_SIDE = 1200;
   var SHADOW_MAX = 800 * 1024;
+  var AUTO_CLEAN_AT = 1.8 * 1024 * 1024;
   var atBottom = true;
   var paintTimer = 0;
   var saveTimer = 0;
@@ -1093,7 +1095,8 @@
       sidebar: true,
       autoProfile: true,
       profileEvery: 4,
-      skeuo: true
+      skeuo: true,
+      autoClean: true
     };
   }
   function freshState() {
@@ -1228,6 +1231,7 @@
       persist(next);
       ui.dirty = true;
       scheduleBackup();
+      maybeAutoClean();
       return true;
     } catch (e) {
       /* 先试试释放旧版本的影子副本 */
@@ -1241,6 +1245,7 @@
         ui.dirty = true;
         scheduleBackup();
         toast('本地空间紧张，已释放旧备份副本');
+        maybeAutoClean();
         return true;
       } catch (e2) {
         /* 还不够，开始清图片 */
@@ -1276,6 +1281,7 @@
       scheduleBackup();
       toast('本地空间不足，已清理最早的 ' + imgCount + ' 张图片，文字保留');
       updateGuardNote();
+      maybeAutoClean();
       return true;
     }
 
@@ -2631,6 +2637,7 @@
     syncTtsNote();
     syncSeg('#segTheme', s.theme);
     syncSeg('#segSkeuo', s.skeuo === false ? 'off' : 'on');
+    syncSeg('#segAutoClean', s.autoClean === false ? 'off' : 'on');
     syncModelNote();
     syncKeyNote();
     syncGeoUI();
@@ -3210,6 +3217,14 @@
       updateProfile(currentConv(), { manual: true });
     });
 
+    document.querySelectorAll('#segAutoClean button').forEach(function (b) {
+      b.addEventListener('click', function () {
+        state.settings.autoClean = b.getAttribute('data-v') !== 'off';
+        syncSeg('#segAutoClean', state.settings.autoClean ? 'on' : 'off');
+        save();
+        if (state.settings.autoClean) maybeAutoClean();
+      });
+    });
     document.querySelectorAll('#segSkeuo button').forEach(function (b) {
       b.addEventListener('click', function () {
         state.settings.skeuo = b.getAttribute('data-v') !== 'off';
@@ -3610,10 +3625,10 @@
       });
   }
 
-  function pruneOldImages(keep) {
-    keep = Math.max(2, Number(keep) || 8);
+  function pruneImages(convs, keep) {
+    keep = Math.max(0, Number(keep) || 0);
     var n = 0;
-    state.convs.forEach(function (c) {
+    (convs || []).forEach(function (c) {
       var msgs = c.messages || [];
       var cut = Math.max(0, msgs.length - keep);
       for (var i = 0; i < cut; i++) {
@@ -3625,6 +3640,32 @@
       }
     });
     return n;
+  }
+
+  function pruneOldImages(keep) {
+    return pruneImages(state.convs, Math.max(2, Number(keep) || 8));
+  }
+
+  function maybeAutoClean() {
+    if (state.settings.autoClean === false) return;
+    var json;
+    try {
+      json = JSON.stringify(state);
+    } catch (e) {
+      return;
+    }
+    if (json.length <= AUTO_CLEAN_AT) return;
+    var n = pruneOldImages(8);
+    if (!n) return;
+    try {
+      persist(JSON.stringify(state));
+      ui.dirty = true;
+      scheduleBackup();
+      updateGuardNote();
+      toast('本地空间偏满，已自动清理 ' + n + ' 张旧图片（保留最近 8 条）');
+    } catch (e2) {
+      toast('自动清理后仍然存不下，请先导出备份');
+    }
   }
 
   function updateGuardNote() {
@@ -4043,6 +4084,7 @@
     syncSend();
     autosize();
     fitViewport();
+    setTimeout(maybeAutoClean, 1800);
   }
 
   function showFatal(msg) {
